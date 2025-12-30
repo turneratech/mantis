@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import MultiSelect from './MultiSelect';
+import FileUpload from './FileUpload';
+import AttachmentList from './AttachmentList';
+import { useAuth } from '../App';
 
 function BugForm() {
   const { projectKey, bugId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const isEditing = Boolean(bugId);
   
   const [users, setUsers] = useState([]);
@@ -13,6 +17,8 @@ function BugForm() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [attachments, setAttachments] = useState([]);
+  const [bugReporter, setBugReporter] = useState('');
   
   const [formData, setFormData] = useState({
     title: '',
@@ -48,24 +54,47 @@ function BugForm() {
 
       if (isEditing) {
         const bugRes = await axios.get(`/api/bugs/${projectKey}/${bugId}`);
+        const bugData = bugRes.data;
+        
         setFormData({
-          title: bugRes.data.title || '',
-          description: bugRes.data.description || '',
-          client: bugRes.data.client || '',
-          module: bugRes.data.module || '',
-          environment: bugRes.data.environment || 'Development',
-          severity: bugRes.data.severity || 'Medium',
-          priority: bugRes.data.priority || 'Medium',
-          status: bugRes.data.status || 'Open',
-          assignee: bugRes.data.assignee || '',
-          targetFixVersion: bugRes.data.targetFixVersion || '',
-          dueSLA: bugRes.data.dueSLA || '',
-          attachmentLinks: bugRes.data.attachmentLinks || '',
-          qaOwner: bugRes.data.qaOwner || '',
-          qaStatus: bugRes.data.qaStatus || 'Not Started',
-          closureReason: bugRes.data.closureReason || '',
-          arb: bugRes.data.arb || []
+          title: bugData.title || '',
+          description: bugData.description || '',
+          client: bugData.client || '',
+          module: bugData.module || '',
+          environment: bugData.environment || 'Development',
+          severity: bugData.severity || 'Medium',
+          priority: bugData.priority || 'Medium',
+          status: bugData.status || 'Open',
+          assignee: bugData.assignee || '',
+          targetFixVersion: bugData.targetFixVersion || '',
+          dueSLA: bugData.dueSLA || '',
+          attachmentLinks: bugData.attachmentLinks || '',
+          qaOwner: bugData.qaOwner || '',
+          qaStatus: bugData.qaStatus || 'Not Started',
+          closureReason: bugData.closureReason || '',
+          arb: bugData.arb || []
         });
+        
+        setBugReporter(bugData.reporter || '');
+        
+        // Try to get attachments from bug data first
+        let existingAttachments = bugData.attachments ? 
+          (typeof bugData.attachments === 'string' ? JSON.parse(bugData.attachments) : bugData.attachments) : [];
+        
+        // If no attachments in bug data, fetch from attachments API
+        if (existingAttachments.length === 0) {
+          try {
+            const attachRes = await axios.get(`/api/attachments/${bugId}`);
+            if (attachRes.data && attachRes.data.attachments) {
+              existingAttachments = attachRes.data.attachments;
+            }
+          } catch (attachErr) {
+            console.log('Could not fetch attachments:', attachErr.message);
+          }
+        }
+        
+        setAttachments(existingAttachments);
+        
       } else if (proj) {
         setFormData(prev => ({
           ...prev,
@@ -87,6 +116,16 @@ function BugForm() {
     });
   };
 
+  // Called when files are uploaded
+  const handleUploadComplete = (uploadedFiles) => {
+    setAttachments(prev => [...prev, ...uploadedFiles]);
+  };
+
+  // Called when attachment is deleted
+  const handleDeleteAttachment = (deletedAttachment) => {
+    setAttachments(prev => prev.filter(a => a.id !== deletedAttachment.id));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -98,7 +137,8 @@ function BugForm() {
         navigate(`/projects/${projectKey}/bugs/${bugId}`);
       } else {
         const res = await axios.post(`/api/bugs/${projectKey}`, formData);
-        navigate(`/projects/${projectKey}/bugs/${res.data.bugId}`);
+        // Navigate to edit mode so user can add attachments
+        navigate(`/projects/${projectKey}/bugs/${res.data.bugId}/edit`);
       }
     } catch (error) {
       setError(error.response?.data?.error || 'Failed to save bug');
@@ -110,12 +150,15 @@ function BugForm() {
     return <div className="loading">Loading...</div>;
   }
 
+  // Check if user can delete attachments
+  const canDeleteAttachments = user?.role === 'admin' || user?.username === bugReporter;
+
   return (
     <div>
       <div className="page-header">
         <div>
           <Link 
-            to={isEditing ? `/projects/${projectKey}/bugs/${bugId}` : `/projects/${projectKey}/bugs`} 
+            to={`/projects/${projectKey}/bugs`} 
             className="btn btn-secondary btn-sm" 
             style={{ marginBottom: '0.5rem' }}
           >
@@ -257,9 +300,9 @@ function BugForm() {
                 onChange={handleChange}
               >
                 <option value="">Unassigned</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.username}>
-                    {user.username}
+                {users.map(u => (
+                  <option key={u.id} value={u.username}>
+                    {u.username}
                   </option>
                 ))}
               </select>
@@ -274,9 +317,9 @@ function BugForm() {
                 onChange={handleChange}
               >
                 <option value="">None</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.username}>
-                    {user.username}
+                {users.map(u => (
+                  <option key={u.id} value={u.username}>
+                    {u.username}
                   </option>
                 ))}
               </select>
@@ -335,14 +378,38 @@ function BugForm() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Attachments/Links</label>
+            <label className="form-label">External Links</label>
             <textarea
               name="attachmentLinks"
               className="form-control"
               value={formData.attachmentLinks}
               onChange={handleChange}
-              placeholder="Paste URLs or references to related documents, screenshots, etc."
+              placeholder="Paste URLs or references to related documents"
               rows="2"
+            />
+          </div>
+
+          {/* ATTACHMENTS SECTION */}
+          <div className="attachments-section">
+            <label className="form-label">
+              Attachments
+              {attachments.length > 0 && (
+                <span className="attachment-count">{attachments.length}</span>
+              )}
+            </label>
+            
+            {/* Show existing attachments */}
+            <AttachmentList
+              bugId={bugId}
+              attachments={attachments}
+              onDelete={handleDeleteAttachment}
+              canDelete={canDeleteAttachments}
+            />
+            
+            {/* Upload button */}
+            <FileUpload
+              bugId={bugId}
+              onUploadComplete={handleUploadComplete}
             />
           </div>
 
@@ -370,7 +437,7 @@ function BugForm() {
               {submitting ? 'Saving...' : (isEditing ? 'Update Bug' : 'Create Bug')}
             </button>
             <Link 
-              to={isEditing ? `/projects/${projectKey}/bugs/${bugId}` : `/projects/${projectKey}/bugs`} 
+              to={`/projects/${projectKey}/bugs`} 
               className="btn btn-secondary"
             >
               Cancel
@@ -383,3 +450,4 @@ function BugForm() {
 }
 
 export default BugForm;
+

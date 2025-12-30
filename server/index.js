@@ -21,6 +21,7 @@ const authRoutes = require('./routes/auth');
 const bugRoutes = require('./routes/bugs');
 const projectRoutes = require('./routes/projects');
 const analyticsRoutes = require('./routes/analytics');
+const attachmentsRoutes = require('./routes/attachments');  // NEW
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,11 +30,15 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Serve uploaded files (for local storage)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));  // NEW
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/bugs', bugRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/attachments', attachmentsRoutes);  // NEW
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
@@ -92,8 +97,9 @@ const startServer = async () => {
       console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log('');
       console.log('Endpoints:');
-      console.log(`  • API:    http://localhost:${PORT}/api`);
-      console.log(`  • Health: http://localhost:${PORT}/api/health`);
+      console.log(`  • API:         http://localhost:${PORT}/api`);
+      console.log(`  • Health:      http://localhost:${PORT}/api/health`);
+      console.log(`  • Attachments: http://localhost:${PORT}/api/attachments`);
       console.log('');
       console.log('Default credentials: admin / admin123');
       console.log('');

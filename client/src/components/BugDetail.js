@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../App';
+import AttachmentList from './AttachmentList';
 
 function BugDetail() {
   const { projectKey, bugId } = useParams();
@@ -11,6 +12,7 @@ function BugDetail() {
   const [loading, setLoading] = useState(true);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [attachments, setAttachments] = useState([]);
 
   useEffect(() => {
     fetchBug();
@@ -19,7 +21,21 @@ function BugDetail() {
   const fetchBug = async () => {
     try {
       const res = await axios.get(`/api/bugs/${projectKey}/${bugId}`);
-      setBug(res.data);
+      const bugData = res.data;
+      setBug(bugData);
+      
+      // Parse attachments
+      const bugAttachments = bugData.attachments ? 
+        (typeof bugData.attachments === 'string' ? JSON.parse(bugData.attachments) : bugData.attachments) : [];
+      setAttachments(bugAttachments);
+      
+      // AUTO-REDIRECT TO EDIT MODE if bug is not Closed
+      // This ensures bugs always open in edit mode unless they're closed
+      if (bugData.status !== 'Closed') {
+        navigate(`/projects/${projectKey}/bugs/${bugId}/edit`, { replace: true });
+        return;
+      }
+      
     } catch (error) {
       console.error('Error fetching bug:', error);
     } finally {
@@ -31,6 +47,11 @@ function BugDetail() {
     try {
       const res = await axios.put(`/api/bugs/${projectKey}/${bugId}`, { status: newStatus });
       setBug(res.data);
+      
+      // If reopened, redirect to edit mode
+      if (newStatus !== 'Closed') {
+        navigate(`/projects/${projectKey}/bugs/${bugId}/edit`);
+      }
     } catch (error) {
       console.error('Error updating status:', error);
     }
@@ -91,6 +112,8 @@ function BugDetail() {
     );
   }
 
+  // This view is only shown for CLOSED bugs
+  // Non-closed bugs are auto-redirected to edit mode
   return (
     <div>
       <div className="bug-detail-header">
@@ -101,11 +124,19 @@ function BugDetail() {
           <span className={`badge badge-${bug.status?.toLowerCase().replace(' ', '-')}`}>
             {bug.status}
           </span>
+          {bug.status === 'Closed' && (
+            <span className="badge" style={{ backgroundColor: '#6c757d', marginLeft: '0.5rem' }}>
+              Read-Only
+            </span>
+          )}
         </div>
         <div className="bug-detail-actions">
-          <Link to={`/projects/${projectKey}/bugs/${bugId}/edit`} className="btn btn-secondary">
-            Edit
-          </Link>
+          <button 
+            className="btn btn-primary" 
+            onClick={() => handleStatusChange('Reopened')}
+          >
+            Reopen Bug
+          </button>
           <button className="btn btn-danger" onClick={handleDelete}>
             Delete
           </button>
@@ -173,7 +204,6 @@ function BugDetail() {
               {bug.qaStatus}
             </span>
           </div>
-          {/* ARB Field */}
           <div className="detail-item">
             <span className="detail-label">Action Required By</span>
             <span className="detail-value">
@@ -219,7 +249,7 @@ function BugDetail() {
 
         {bug.attachmentLinks && (
           <div className="detail-section">
-            <h3>Attachments/Links</h3>
+            <h3>External Links</h3>
             <div className="description-content">
               {bug.attachmentLinks}
             </div>
@@ -227,21 +257,27 @@ function BugDetail() {
         )}
       </div>
 
-      {/* Quick Status Change */}
+      {/* FILE ATTACHMENTS - Click to open in browser */}
       <div className="card" style={{ marginTop: '1.5rem' }}>
-        <h3 style={{ marginBottom: '1rem' }}>Quick Actions</h3>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {['Open', 'In Progress', 'Resolved', 'Closed', 'Reopened'].map(status => (
-            <button
-              key={status}
-              className={`btn ${bug.status === status ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-              onClick={() => handleStatusChange(status)}
-              disabled={bug.status === status}
-            >
-              {status}
-            </button>
-          ))}
-        </div>
+        <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          📎 Attachments
+          {attachments.length > 0 && (
+            <span style={{
+              backgroundColor: 'var(--primary-color, #4a90e2)',
+              color: 'white',
+              fontSize: '0.75rem',
+              padding: '0.15rem 0.5rem',
+              borderRadius: '10px'
+            }}>
+              {attachments.length}
+            </span>
+          )}
+        </h3>
+        <AttachmentList
+          bugId={bugId}
+          attachments={attachments}
+          canDelete={false}  // Read-only for closed bugs
+        />
       </div>
 
       {/* Activity Log */}
@@ -275,7 +311,7 @@ function BugDetail() {
             )}
           </div>
 
-          {/* Comment Form */}
+          {/* Comment Form - disabled for closed bugs */}
           <form className="comment-form" onSubmit={handleAddComment}>
             <input
               type="text"

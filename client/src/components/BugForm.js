@@ -20,6 +20,11 @@ function BugForm() {
   const [attachments, setAttachments] = useState([]);
   const [bugReporter, setBugReporter] = useState('');
   
+  // Activity log and comments state
+  const [activityLog, setActivityLog] = useState([]);
+  const [comment, setComment] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
+  
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -76,6 +81,9 @@ function BugForm() {
         });
         
         setBugReporter(bugData.reporter || '');
+        
+        // Set activity log
+        setActivityLog(bugData.activityLog || []);
         
         // Try to get attachments from bug data first
         let existingAttachments = bugData.attachments ? 
@@ -144,6 +152,42 @@ function BugForm() {
       setError(error.response?.data?.error || 'Failed to save bug');
       setSubmitting(false);
     }
+  };
+
+  // Handle adding a comment
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    if (!comment.trim()) return;
+
+    setSubmittingComment(true);
+    try {
+      const res = await axios.post(`/api/bugs/${projectKey}/${bugId}/comment`, { comment });
+      // Update activity log with the response
+      setActivityLog(res.data.activityLog || []);
+      setComment('');
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      setError('Failed to add comment');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    return new Date(dateStr).toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  // Get initials for avatar
+  const getInitials = (name) => {
+    return name?.split(' ').map(n => n[0]).join('').toUpperCase() || '?';
   };
 
   if (loading) {
@@ -445,9 +489,61 @@ function BugForm() {
           </div>
         </form>
       </div>
+
+      {/* ACTIVITY LOG & COMMENTS SECTION - Only show when editing */}
+      {isEditing && (
+        <div className="activity-section" style={{ marginTop: '2rem' }}>
+          <h2>Activity Log & Comments</h2>
+          <div className="card">
+            <div className="activity-list">
+              {activityLog.length === 0 ? (
+                <div className="empty-state" style={{ padding: '1.5rem' }}>
+                  <p>No activity yet. Add a comment below to start the conversation.</p>
+                </div>
+              ) : (
+                [...activityLog].reverse().map((activity, idx) => (
+                  <div key={idx} className="activity-item">
+                    <div className="activity-avatar">
+                      {getInitials(activity.user)}
+                    </div>
+                    <div className="activity-content">
+                      <div className="activity-header">
+                        <span className="activity-user">{activity.user}</span>
+                        <span className="activity-time">{formatDate(activity.timestamp)}</span>
+                      </div>
+                      <div className={`activity-message ${activity.action === 'comment' ? 'comment' : ''}`}>
+                        {activity.action === 'comment' ? activity.message : (
+                          <em>{activity.message}</em>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Comment Form */}
+            <form className="comment-form" onSubmit={handleAddComment}>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Add a comment..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
+              <button 
+                type="submit" 
+                className="btn btn-primary"
+                disabled={submittingComment || !comment.trim()}
+              >
+                {submittingComment ? 'Posting...' : 'Post'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default BugForm;
-

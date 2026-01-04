@@ -18,7 +18,9 @@ function ProjectForm() {
     description: '',
     client: '',
     status: 'active',
-    members: []
+    members: [],
+    githubRepoUrl: '',
+    webhookSecret: ''
   });
 
   useEffect(() => {
@@ -46,7 +48,9 @@ function ProjectForm() {
         description: res.data.description || '',
         client: res.data.client || '',
         status: res.data.status || 'active',
-        members: res.data.members || []
+        members: res.data.members || [],
+        githubRepoUrl: res.data.githubRepoUrl || '',
+        webhookSecret: res.data.webhookSecret || ''
       });
     } catch (error) {
       console.error('Error fetching project:', error);
@@ -75,6 +79,13 @@ function ProjectForm() {
         ? prev.members.filter(m => m !== username)
         : [...prev.members, username]
     }));
+  };
+
+  const generateWebhookSecret = () => {
+    const array = new Uint8Array(24);
+    crypto.getRandomValues(array);
+    const secret = 'whsec_' + Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+    setFormData(prev => ({ ...prev, webhookSecret: secret }));
   };
 
   const handleSubmit = async (e) => {
@@ -203,6 +214,105 @@ function ProjectForm() {
               ))}
             </div>
           </div>
+
+          {/* GitHub Integration Section - Only show when editing */}
+          {isEditing && (
+            <div className="github-integration-section" style={{ 
+              marginTop: '2rem', 
+              paddingTop: '1.5rem', 
+              borderTop: '1px solid var(--border)' 
+            }}>
+              <h3 style={{ 
+                fontSize: '1rem', 
+                marginBottom: '1rem', 
+                color: 'var(--text-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}>
+                <span>🔗</span> GitHub Integration
+              </h3>
+              
+              <div className="form-group">
+                <label className="form-label">GitHub Repository URL</label>
+                <input
+                  type="url"
+                  name="githubRepoUrl"
+                  className="form-control"
+                  value={formData.githubRepoUrl}
+                  onChange={handleChange}
+                  placeholder="https://github.com/username/repository.git"
+                />
+                <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                  Link this project to a GitHub repository for automatic commit tracking
+                </small>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Webhook Secret</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    name="webhookSecret"
+                    className="form-control"
+                    value={formData.webhookSecret}
+                    onChange={handleChange}
+                    placeholder="Enter a secure secret key"
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={generateWebhookSecret}
+                    title="Generate random secret"
+                  >
+                    Generate
+                  </button>
+                </div>
+                <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                  Use this secret when configuring the webhook in GitHub
+                </small>
+              </div>
+
+              {formData.githubRepoUrl && formData.webhookSecret && (
+                <div style={{ 
+                  background: 'var(--bg-input)', 
+                  borderRadius: '8px', 
+                  padding: '1rem',
+                  marginTop: '1rem'
+                }}>
+                  <h4 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
+                    📋 GitHub Webhook Setup Instructions
+                  </h4>
+                  <ol style={{ 
+                    fontSize: '0.85rem', 
+                    color: 'var(--text-secondary)', 
+                    paddingLeft: '1.25rem',
+                    margin: 0,
+                    lineHeight: '1.8'
+                  }}>
+                    <li>Go to your repository: <a href={formData.githubRepoUrl.replace('.git', '')} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>{formData.githubRepoUrl.replace('.git', '')}</a></li>
+                    <li>Navigate to <strong>Settings → Webhooks → Add webhook</strong></li>
+                    <li>Payload URL: <code style={{ background: 'var(--bg-dark)', padding: '0.2rem 0.4rem', borderRadius: '4px', userSelect: 'all' }}>{window.location.origin}/api/webhooks/github</code></li>
+                    <li>Content type: <code style={{ background: 'var(--bg-dark)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>application/json</code></li>
+                    <li>Secret: <code style={{ background: 'var(--bg-dark)', padding: '0.2rem 0.4rem', borderRadius: '4px', userSelect: 'all' }}>{formData.webhookSecret}</code></li>
+                    <li>Select events: <strong>Just the push event</strong></li>
+                    <li>Check <strong>Active</strong> and save</li>
+                  </ol>
+                  <div style={{ 
+                    marginTop: '1rem', 
+                    padding: '0.75rem', 
+                    background: 'rgba(79, 70, 229, 0.1)', 
+                    borderRadius: '6px',
+                    fontSize: '0.85rem'
+                  }}>
+                    <strong>Commit Message Format:</strong><br/>
+                    <code style={{ color: 'var(--primary)' }}>{formData.key}-0001: Your message - Author: username</code>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
             <button type="submit" className="btn btn-primary" disabled={submitting}>

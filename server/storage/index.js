@@ -140,6 +140,9 @@ module.exports = {
   addBugComment: (...args) => getStorage().addBugComment(...args),
   getBugStats: (...args) => getStorage().getBugStats(...args),
   
+  // NEW proxy for GitHub webhook
+  addBugActivity: (...args) => getStorage().addBugActivity(...args),
+  
   // Analytics
   getAdminAnalytics: (...args) => getStorage().getAdminAnalytics(...args),
   getUserDashboard: (...args) => getStorage().getUserDashboard(...args)

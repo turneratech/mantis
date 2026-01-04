@@ -300,8 +300,16 @@ function BugDetail() {
                       <span className="activity-user">{activity.user}</span>
                       <span className="activity-time">{formatDate(activity.timestamp)}</span>
                     </div>
-                    <div className={`activity-message ${activity.action === 'comment' ? 'comment' : ''}`}>
-                      {activity.action === 'comment' ? activity.message : (
+                    <div className={`activity-message ${activity.action === 'comment' ? 'comment' : ''} ${activity.action === 'commit' ? 'commit' : ''}`}>
+                      {activity.action === 'comment' ? activity.message : 
+                       activity.action === 'commit' ? (
+                        <span dangerouslySetInnerHTML={{ 
+                          __html: activity.message.replace(
+                            /(https?:\/\/[^\s]+)/g, 
+                            '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+                          )
+                        }} />
+                      ) : (
                         <em>{activity.message}</em>
                       )}
                     </div>

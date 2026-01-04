@@ -82,7 +82,10 @@ const getAllProjects = async (username, isAdmin) => {
     createdBy: p.created_by,
     createdAt: p.created_at,
     updatedAt: p.updated_at,
-    members: p.members_list ? p.members_list.split(',') : []
+    members: p.members_list ? p.members_list.split(',') : [],
+    // GitHub Integration fields (stored in Temp1 and Temp2)
+    githubRepoUrl: p.Temp1 || '',
+    webhookSecret: p.Temp2 || ''
   }));
 };
 
@@ -107,7 +110,10 @@ const getProjectById = async (id) => {
     createdBy: project.created_by,
     createdAt: project.created_at,
     updatedAt: project.updated_at,
-    members: project.members_list ? project.members_list.split(',') : []
+    members: project.members_list ? project.members_list.split(',') : [],
+    // GitHub Integration fields (stored in Temp1 and Temp2)
+    githubRepoUrl: project.Temp1 || '',
+    webhookSecret: project.Temp2 || ''
   };
 };
 
@@ -151,7 +157,11 @@ const createProject = async (projectData) => {
 };
 
 const updateProject = async (id, updates) => {
-  const { name, description, client, status, members } = updates;
+  const { name, description, client, status, members, githubRepoUrl, webhookSecret } = updates;
+  
+  // Convert undefined to null for MySQL (undefined is not allowed in bind params)
+  const safeGithubRepoUrl = githubRepoUrl !== undefined ? githubRepoUrl : null;
+  const safeWebhookSecret = webhookSecret !== undefined ? webhookSecret : null;
   
   await transaction(async (conn) => {
     await conn.execute(
@@ -159,9 +169,11 @@ const updateProject = async (id, updates) => {
         name = COALESCE(?, name),
         description = COALESCE(?, description),
         client = COALESCE(?, client),
-        status = COALESCE(?, status)
+        status = COALESCE(?, status),
+        Temp1 = COALESCE(?, Temp1),
+        Temp2 = COALESCE(?, Temp2)
        WHERE id = ?`,
-      [name, description, client, status, id]
+      [name || null, description || null, client || null, status || null, safeGithubRepoUrl, safeWebhookSecret, id]
     );
     
     if (members) {
@@ -219,6 +231,24 @@ const getActivityLog = async (bugId) => {
   );
 };
 
+// Parse ARB stored as JSON string in either the dedicated column or legacy Temp1
+const parseArb = (bug) => {
+  const raw = bug?.arb || bug?.Temp1;
+  if (!raw) return [];
+
+  if (Array.isArray(raw)) return raw;
+
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      return raw.split(',').map(s => s.trim()).filter(Boolean);
+    }
+  }
+
+  return [];
+};
+
 const formatBug = async (bug, includeActivity = true) => {
   const formatted = {
     bugId: bug.bug_id,
@@ -238,7 +268,7 @@ const formatBug = async (bug, includeActivity = true) => {
     dueSLA: bug.due_sla,
     attachmentLinks: bug.attachment_links,
     closureReason: bug.closure_reason,
-    arb: bug.Temp1 ? JSON.parse(bug.Temp1) : [],
+    arb: parseArb(bug),
     created: bug.created_at,
     lastUpdated: bug.updated_at,
     closedDate: bug.closed_at,
@@ -390,9 +420,9 @@ const updateBug = async (bugId, updates, updatedBy) => {
     }
   });
 
-  // Track ARB changes
+  // Track ARB changes - USE parseArb helper
   if (arb !== undefined) {
-    const oldArb = bug.arb ? JSON.parse(bug.arb) : [];
+    const oldArb = parseArb(bug);
     if (JSON.stringify(oldArb) !== JSON.stringify(arb)) {
       changes.push(`ARB: "${oldArb.join(', ')}" → "${arb.join(', ')}"`);
     }
@@ -400,7 +430,7 @@ const updateBug = async (bugId, updates, updatedBy) => {
 
   // Handle closed date and reset ARB when closed
   let closedAt = bug.closed_at;
-  let finalArb = arb !== undefined ? arb : (bug.arb ? JSON.parse(bug.arb) : []);
+  let finalArb = arb !== undefined ? arb : parseArb(bug);
 
   if (status === 'Closed' && bug.status !== 'Closed') {
     closedAt = new Date();
@@ -477,6 +507,20 @@ const addBugComment = async (bugId, username, comment) => {
   return await getBugById(bugId);
 };
 
+/**
+ * Add activity entry to bug (used by GitHub webhook)
+ * Does not update bug's updated_at timestamp for automated activities
+ */
+const addBugActivity = async (bugId, username, action, message) => {
+  await transaction(async (conn) => {
+    await conn.execute(
+      'INSERT INTO bug_activity (bug_id, user, action, message) VALUES (?, ?, ?, ?)',
+      [bugId, username, action, message]
+    );
+  });
+  return true;
+};
+
 const getBugStats = async (projectKey) => {
   const stats = await queryOne(`
     SELECT 
@@ -508,39 +552,35 @@ const getAdminAnalytics = async () => {
   // Overall stats
   const overallStats = await queryOne(`
     SELECT 
-      (SELECT COUNT(*) FROM bugs) as totalBugs,
-      (SELECT COUNT(*) FROM projects) as totalProjects,
-      (SELECT COUNT(*) FROM users) as totalUsers,
-      (SELECT COUNT(*) FROM bugs WHERE status = 'Open') as openBugs,
-      (SELECT COUNT(*) FROM bugs WHERE status = 'In Progress') as inProgressBugs,
-      (SELECT COUNT(*) FROM bugs WHERE status = 'Resolved') as resolvedBugs,
-      (SELECT COUNT(*) FROM bugs WHERE status = 'Closed') as closedBugs,
-      (SELECT COUNT(*) FROM bugs WHERE severity = 'Critical') as criticalBugs,
-      (SELECT COUNT(*) FROM bugs WHERE severity = 'High') as highBugs,
-      (SELECT COUNT(*) FROM bugs WHERE severity = 'Medium') as mediumBugs,
-      (SELECT COUNT(*) FROM bugs WHERE severity = 'Low') as lowBugs
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'Open' THEN 1 ELSE 0 END) as \`open\`,
+      SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END) as inProgress,
+      SUM(CASE WHEN status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
+      SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END) as closed,
+      SUM(CASE WHEN severity = 'Critical' THEN 1 ELSE 0 END) as critical,
+      SUM(CASE WHEN severity = 'High' THEN 1 ELSE 0 END) as high,
+      SUM(CASE WHEN severity = 'Medium' THEN 1 ELSE 0 END) as medium,
+      SUM(CASE WHEN severity = 'Low' THEN 1 ELSE 0 END) as low
+    FROM bugs
   `);
 
-  // Distributions
-  const statusDistribution = [
-    { name: 'Open', value: overallStats.openBugs || 0, color: '#3b82f6' },
-    { name: 'In Progress', value: overallStats.inProgressBugs || 0, color: '#8b5cf6' },
-    { name: 'Resolved', value: overallStats.resolvedBugs || 0, color: '#10b981' },
-    { name: 'Closed', value: overallStats.closedBugs || 0, color: '#6b7280' }
-  ].filter(s => s.value > 0);
+  // Status distribution for charts
+  const statusDistribution = await query(`
+    SELECT status as name, COUNT(*) as value
+    FROM bugs GROUP BY status HAVING COUNT(*) > 0
+  `);
 
-  const severityDistribution = [
-    { name: 'Critical', value: overallStats.criticalBugs || 0, color: '#dc2626' },
-    { name: 'High', value: overallStats.highBugs || 0, color: '#f97316' },
-    { name: 'Medium', value: overallStats.mediumBugs || 0, color: '#eab308' },
-    { name: 'Low', value: overallStats.lowBugs || 0, color: '#22c55e' }
-  ].filter(s => s.value > 0);
+  // Severity distribution
+  const severityDistribution = await query(`
+    SELECT severity as name, COUNT(*) as value
+    FROM bugs GROUP BY severity HAVING COUNT(*) > 0
+  `);
 
-  const priorityData = await query('SELECT priority, COUNT(*) as count FROM bugs GROUP BY priority');
-  const priorityMap = { Critical: '#dc2626', High: '#f97316', Medium: '#eab308', Low: '#22c55e' };
-  const priorityDistribution = priorityData
-    .map(p => ({ name: p.priority, value: p.count, color: priorityMap[p.priority] }))
-    .filter(p => p.value > 0);
+  // Priority distribution
+  const priorityDistribution = await query(`
+    SELECT priority as name, COUNT(*) as value
+    FROM bugs GROUP BY priority HAVING COUNT(*) > 0
+  `);
 
   // Project stats
   const projectStats = await query(`
@@ -549,8 +589,7 @@ const getAdminAnalytics = async () => {
       COUNT(b.id) as total,
       SUM(CASE WHEN b.status = 'Open' THEN 1 ELSE 0 END) as \`open\`,
       SUM(CASE WHEN b.status = 'In Progress' THEN 1 ELSE 0 END) as inProgress,
-      SUM(CASE WHEN b.status = 'Resolved' THEN 1 ELSE 0 END) as resolved,
-      SUM(CASE WHEN b.status = 'Closed' THEN 1 ELSE 0 END) as closed,
+      SUM(CASE WHEN b.status IN ('Resolved', 'Closed') THEN 1 ELSE 0 END) as resolved,
       SUM(CASE WHEN b.severity = 'Critical' THEN 1 ELSE 0 END) as critical
     FROM projects p
     LEFT JOIN bugs b ON p.id = b.project_id
@@ -797,6 +836,7 @@ module.exports = {
   updateBug,
   deleteBug,
   addBugComment,
+  addBugActivity,  // NEW: For GitHub webhook
   getBugStats,
   // Analytics
   getAdminAnalytics,

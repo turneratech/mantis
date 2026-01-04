@@ -12,12 +12,17 @@
   --warning: #f59e0b;
   --danger: #ef4444;
   --purple: #8b5cf6;
+  --primary-color: #4f46e5;
   --bg-dark: #0f172a;
   --bg-card: #1e293b;
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #243044;
   --bg-input: #334155;
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --border: #334155;
+  --border-color: #334155;
 }
 
 body {
@@ -2008,3 +2013,47 @@ textarea.form-control {
 }
 
 
+
+/* ============================================
+   GITHUB COMMIT ACTIVITY STYLES
+   ============================================ */
+
+.activity-message.commit {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(99, 102, 241, 0.05));
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  border-left: 3px solid var(--primary);
+  padding: 0.75rem 1rem;
+  border-radius: 0 8px 8px 0;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.activity-message.commit a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.activity-message.commit a:hover {
+  text-decoration: underline;
+}
+
+/* GitHub Integration Section in Project Form */
+.github-integration-section code {
+  user-select: all;
+  cursor: pointer;
+}
+
+.github-integration-section ol li {
+  margin-bottom: 0.5rem;
+}
+
+.github-integration-section a {
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.github-integration-section a:hover {
+  text-decoration: underline;
+}

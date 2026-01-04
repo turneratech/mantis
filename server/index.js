@@ -22,13 +22,24 @@ const bugRoutes = require('./routes/bugs');
 const projectRoutes = require('./routes/projects');
 const analyticsRoutes = require('./routes/analytics');
 const attachmentsRoutes = require('./routes/attachments');  // NEW
+const githubWebhook = require('./routes/github-webhook');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+
+// FIX: Use JSON body parser for all routes EXCEPT the GitHub webhook
+// The webhook needs the raw body to verify the HMAC signature
+app.use((req, res, next) => {
+  if (req.path === '/api/webhooks/github') {
+    // Skip JSON parsing for webhook - let the route handle it with express.raw()
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
 // Serve uploaded files (for local storage)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));  // NEW
@@ -39,6 +50,7 @@ app.use('/api/bugs', bugRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/attachments', attachmentsRoutes);  // NEW
+app.use('/api/webhooks', githubWebhook);
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {

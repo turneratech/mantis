@@ -86,14 +86,18 @@ router.put('/:id', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
-    const { name, description, client, status, members } = req.body;
+    // FIX: Added githubRepoUrl and webhookSecret to destructuring
+    const { name, description, client, status, members, githubRepoUrl, webhookSecret } = req.body;
     
+    // FIX: Pass GitHub integration fields to storage.updateProject
     const updated = await storage.updateProject(req.params.id, {
       name,
       description,
       client,
       status,
-      members
+      members,
+      githubRepoUrl,    // FIX: Added this field
+      webhookSecret     // FIX: Added this field
     });
 
     res.json(updated);

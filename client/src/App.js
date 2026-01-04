@@ -158,12 +158,15 @@ function App() {
                   <UserManagement />
                 </ProtectedRoute>
               } />
-	    <Route path="/change-password" element={
+              
+              {/* Change Password */}
+              <Route path="/change-password" element={
                 <ProtectedRoute>
                   <ChangePassword />
                 </ProtectedRoute>
               } />
-	  </Routes>
+
+            </Routes>
           </main>
           {user && <Footer />}
         </div>

@@ -33,7 +33,7 @@
 **BugTracker** is a full-featured, enterprise-ready bug tracking system designed for software development teams. Built with a modern tech stack, it offers a clean dark-themed UI, multi-project support, role-based access control, and a flexible dual-storage architecture that automatically detects and uses either MySQL or CSV backends.
 
 <p align="center">
-  <img src="./docs/images/dashboard-screenshot.png" alt="Dashboard Screenshot" width="800">
+  <img src="/imgs/dashboard_img.png" alt="Dashboard Screenshot" width="800">
 </p>
 
 ---

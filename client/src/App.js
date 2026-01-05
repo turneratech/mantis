@@ -33,6 +33,11 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
+// Helper function to check if user has elevated privileges
+const hasElevatedPrivileges = (user) => {
+  return user && (user.role === 'godmode' || user.role === 'admin');
+};
+
 // Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
@@ -45,7 +50,8 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
     return <Navigate to="/login" />;
   }
 
-  if (adminOnly && user.role !== 'admin') {
+  // adminOnly routes are accessible by both admin and godmode roles
+  if (adminOnly && !hasElevatedPrivileges(user)) {
     return <Navigate to="/" />;
   }
   
@@ -94,10 +100,10 @@ function App() {
             <Routes>
               <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
               
-              {/* Dashboard - different for admin vs user */}
+              {/* Dashboard - AdminDashboard for godmode/admin, regular Dashboard for users */}
               <Route path="/" element={
                 <ProtectedRoute>
-                  {user?.role === 'admin' ? <AdminDashboard /> : <Dashboard />}
+                  {hasElevatedPrivileges(user) ? <AdminDashboard /> : <Dashboard />}
                 </ProtectedRoute>
               } />
 
@@ -152,7 +158,7 @@ function App() {
                 </ProtectedRoute>
               } />
 
-              {/* User Management */}
+              {/* User Management - accessible by admin and godmode */}
               <Route path="/users" element={
                 <ProtectedRoute adminOnly>
                   <UserManagement />

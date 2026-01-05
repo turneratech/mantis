@@ -13,6 +13,33 @@ function Navbar() {
     return location.pathname.startsWith(path) ? 'nav-link active' : 'nav-link';
   };
 
+  // Check if user has elevated privileges (admin or godmode)
+  const hasElevatedPrivileges = user?.role === 'godmode' || user?.role === 'admin';
+
+  // Get role badge class based on role
+  const getRoleBadgeClass = (role) => {
+    switch (role) {
+      case 'godmode':
+        return 'godmode';
+      case 'admin':
+        return 'admin';
+      default:
+        return 'user';
+    }
+  };
+
+  // Get display name for role
+  const getRoleDisplayName = (role) => {
+    switch (role) {
+      case 'godmode':
+        return '⚡ GOD MODE';
+      case 'admin':
+        return 'ADMIN';
+      default:
+        return role;
+    }
+  };
+
   const helpButtonStyle = {
     display: 'flex',
     alignItems: 'center',
@@ -47,7 +74,7 @@ function Navbar() {
           <Link to="/my-bugs" className={isActive('/my-bugs')}>
             My Bugs
           </Link>
-          {user?.role === 'admin' && (
+          {hasElevatedPrivileges && (
             <Link to="/users" className={isActive('/users')}>
               Users
             </Link>
@@ -75,12 +102,12 @@ function Navbar() {
           
           <span className="user-info">
             {user?.username} 
-            <span className={`role-badge ${user?.role === 'admin' ? 'admin' : 'user'}`}>
-              {user?.role}
+            <span className={`role-badge ${getRoleBadgeClass(user?.role)}`}>
+              {getRoleDisplayName(user?.role)}
             </span>
           </span>
           <Link to="/change-password" className="btn btn-secondary btn-sm" style={{ marginRight: '0.5rem' }} title="Change Password">
-            🔒
+            🔑
           </Link>
           <button className="btn btn-secondary btn-sm" onClick={logout}>
             Logout

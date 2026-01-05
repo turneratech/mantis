@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useAuth } from '../App';
 
 function UserManagement() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +16,12 @@ function UserManagement() {
     password: '',
     role: 'user'
   });
+
+  // Check if current user is godmode
+  const isGodMode = currentUser?.role === 'godmode';
+  
+  // Check if current user has elevated privileges
+  const hasElevatedPrivileges = currentUser?.role === 'godmode' || currentUser?.role === 'admin';
 
   useEffect(() => {
     fetchData();
@@ -45,6 +53,12 @@ function UserManagement() {
     e.preventDefault();
     setError('');
 
+    // Validation: Only godmode can create godmode/admin users
+    if (!isGodMode && (formData.role === 'godmode' || formData.role === 'admin')) {
+      setError('Only super users can create admin or super user accounts');
+      return;
+    }
+
     try {
       await axios.post('/api/auth/register', formData);
       setShowModal(false);
@@ -55,7 +69,19 @@ function UserManagement() {
     }
   };
 
-  const handleDelete = async (userId) => {
+  const handleDelete = async (userId, userRole, username) => {
+    // Prevent deletion of godmode users by non-godmode users
+    if (userRole === 'godmode' && !isGodMode) {
+      alert('Only super users can delete other super user accounts');
+      return;
+    }
+    
+    // Prevent deletion of the default admin by regular admins
+    if (username === 'admin' && !isGodMode) {
+      alert('The default admin account cannot be deleted');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to delete this user?')) return;
 
     try {
@@ -63,6 +89,7 @@ function UserManagement() {
       fetchData();
     } catch (error) {
       console.error('Error deleting user:', error);
+      alert(error.response?.data?.error || 'Failed to delete user');
     }
   };
 
@@ -90,6 +117,43 @@ function UserManagement() {
 
   const getUserProjects = (username) => {
     return projects.filter(p => p.members?.includes(username));
+  };
+
+  // Get badge class for role
+  const getRoleBadgeClass = (role) => {
+    switch (role) {
+      case 'godmode':
+        return 'badge-godmode';
+      case 'admin':
+        return 'badge-critical';
+      default:
+        return 'badge-medium';
+    }
+  };
+
+  // Get display name for role
+  const getRoleDisplayName = (role) => {
+    switch (role) {
+      case 'godmode':
+        return '⚡ GOD MODE';
+      case 'admin':
+        return 'Admin';
+      default:
+        return 'User';
+    }
+  };
+
+  // Check if user can be deleted
+  const canDeleteUser = (targetUser) => {
+    // Godmode users can delete anyone except themselves
+    if (isGodMode) {
+      return targetUser.id !== currentUser.id;
+    }
+    // Admins can only delete regular users
+    if (currentUser?.role === 'admin') {
+      return targetUser.role === 'user' && targetUser.username !== 'admin';
+    }
+    return false;
   };
 
   if (loading) {
@@ -125,8 +189,8 @@ function UserManagement() {
                     <strong>{user.username}</strong>
                   </td>
                   <td>
-                    <span className={`badge ${user.role === 'admin' ? 'badge-critical' : 'badge-medium'}`}>
-                      {user.role}
+                    <span className={`badge ${getRoleBadgeClass(user.role)}`}>
+                      {getRoleDisplayName(user.role)}
                     </span>
                   </td>
                   <td>
@@ -153,8 +217,9 @@ function UserManagement() {
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
-                        onClick={() => handleDelete(user.id)}
-                        disabled={user.username === 'admin'}
+                        onClick={() => handleDelete(user.id, user.role, user.username)}
+                        disabled={!canDeleteUser(user)}
+                        title={!canDeleteUser(user) ? 'Cannot delete this user' : 'Delete user'}
                       >
                         Delete
                       </button>
@@ -205,8 +270,19 @@ function UserManagement() {
                   onChange={handleChange}
                 >
                   <option value="user">User</option>
-                  <option value="admin">Admin</option>
+                  {/* Only godmode users can create admin/godmode users */}
+                  {isGodMode && (
+                    <>
+                      <option value="admin">Admin</option>
+                      <option value="godmode">⚡ God Mode (Super User)</option>
+                    </>
+                  )}
                 </select>
+                {!isGodMode && (
+                  <small style={{ color: 'var(--text-secondary)', marginTop: '0.25rem', display: 'block' }}>
+                    Only super users can create admin accounts
+                  </small>
+                )}
               </div>
               <div className="modal-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>

@@ -9,6 +9,9 @@ function ProjectList() {
   const [loading, setLoading] = useState(true);
   const [projectStats, setProjectStats] = useState({});
 
+  // Check if user has elevated privileges (can create/edit projects)
+  const hasElevatedPrivileges = user?.role === 'godmode' || user?.role === 'admin';
+
   useEffect(() => {
     fetchProjects();
   }, []);
@@ -44,7 +47,7 @@ function ProjectList() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Projects ({projects.length})</h1>
-        {user?.role === 'admin' && (
+        {hasElevatedPrivileges && (
           <Link to="/projects/new" className="btn btn-primary">+ New Project</Link>
         )}
       </div>
@@ -53,11 +56,11 @@ function ProjectList() {
         <div className="empty-state">
           <h3>No projects found</h3>
           <p>
-            {user?.role === 'admin' 
+            {hasElevatedPrivileges 
               ? 'Create your first project to get started.'
               : 'You haven\'t been assigned to any projects yet.'}
           </p>
-          {user?.role === 'admin' && (
+          {hasElevatedPrivileges && (
             <Link to="/projects/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>
               Create Project
             </Link>
@@ -122,7 +125,7 @@ function ProjectList() {
                     >
                       View Bugs
                     </Link>
-                    {user?.role === 'admin' && (
+                    {hasElevatedPrivileges && (
                       <Link 
                         to={`/projects/${project.id}/edit`} 
                         className="btn btn-secondary btn-sm"

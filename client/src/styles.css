@@ -2057,3 +2057,41 @@ textarea.form-control {
 .github-integration-section a:hover {
   text-decoration: underline;
 }
+
+
+
+/* Permission denied tooltip/message */
+.permission-denied {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+/* Disabled action button for insufficient permissions */
+.btn:disabled[title*="Cannot"],
+.btn:disabled[title*="Only"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ========================================
+   GOD MODE EXCLUSIVE SECTIONS (Optional)
+   ======================================== */
+
+/* Section visible only to God Mode users */
+.godmode-only {
+  border-left: 3px solid #fbbf24;
+  padding-left: 1rem;
+  margin-left: 0.5rem;
+}
+
+.godmode-only::before {
+  content: '⚡ Super User Only';
+  display: block;
+  font-size: 0.7rem;
+  color: #fbbf24;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}

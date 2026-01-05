@@ -2,9 +2,14 @@
  * Bug Routes
  * Uses storage abstraction layer for data access
  * 
+ * ROLES:
+ * - godmode: Full access to all bugs, can delete bugs
+ * - admin: Full access to all bugs, can delete bugs
+ * - user: Can only see/edit bugs where they are assignee, reporter, QA owner, or in ARB
+ * 
  * Visibility Rules:
- * - Admin: Can see all bugs
- * - Regular User: Can see bugs where they are assignee, reporter, or in ARB
+ * - Godmode/Admin: Can see all bugs
+ * - Regular User: Can see bugs where they are assignee, reporter, QA owner, or in ARB
  */
 
 const express = require('express');
@@ -13,11 +18,16 @@ const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Helper function to check if user has elevated privileges
+const hasElevatedPrivileges = (user) => {
+  return user && (user.role === 'godmode' || user.role === 'admin');
+};
+
 /**
  * Check if user can view a bug
  */
-const canUserViewBug = (bug, username, isAdmin) => {
-  if (isAdmin) return true;
+const canUserViewBug = (bug, username, isPrivileged) => {
+  if (isPrivileged) return true;
   
   // User is assignee
   if (bug.assignee === username) return true;
@@ -39,15 +49,15 @@ const canUserViewBug = (bug, username, isAdmin) => {
 /**
  * Filter bugs based on user visibility
  */
-const filterBugsForUser = (bugs, username, isAdmin) => {
-  if (isAdmin) return bugs;
-  return bugs.filter(bug => canUserViewBug(bug, username, isAdmin));
+const filterBugsForUser = (bugs, username, isPrivileged) => {
+  if (isPrivileged) return bugs;
+  return bugs.filter(bug => canUserViewBug(bug, username, isPrivileged));
 };
 
 // Get all bugs across all projects (for admin dashboard)
 router.get('/all', authMiddleware, async (req, res) => {
   try {
-    const isAdmin = req.user.role === 'admin';
+    const isPrivileged = hasElevatedPrivileges(req.user);
     let bugs;
     
     try {
@@ -58,8 +68,8 @@ router.get('/all', authMiddleware, async (req, res) => {
       bugs = [];
     }
     
-    // Filter for non-admins
-    bugs = filterBugsForUser(bugs, req.user.username, isAdmin);
+    // Filter for non-privileged users
+    bugs = filterBugsForUser(bugs, req.user.username, isPrivileged);
     
     res.json(bugs);
   } catch (error) {
@@ -71,11 +81,11 @@ router.get('/all', authMiddleware, async (req, res) => {
 // Get bugs for a specific project
 router.get('/project/:projectKey', authMiddleware, async (req, res) => {
   try {
-    const isAdmin = req.user.role === 'admin';
+    const isPrivileged = hasElevatedPrivileges(req.user);
     let bugs = await storage.getBugsByProject(req.params.projectKey);
     
-    // Filter for non-admins
-    bugs = filterBugsForUser(bugs, req.user.username, isAdmin);
+    // Filter for non-privileged users
+    bugs = filterBugsForUser(bugs, req.user.username, isPrivileged);
     
     res.json(bugs);
   } catch (error) {
@@ -88,10 +98,10 @@ router.get('/project/:projectKey', authMiddleware, async (req, res) => {
 router.get('/my-bugs', authMiddleware, async (req, res) => {
   try {
     const username = req.user.username;
-    const isAdmin = req.user.role === 'admin';
+    const isPrivileged = hasElevatedPrivileges(req.user);
     
-    // For admin, return all bugs
-    if (isAdmin) {
+    // For privileged users, return all bugs
+    if (isPrivileged) {
       try {
         const bugs = await storage.getAllBugs();
         return res.json(bugs);
@@ -126,8 +136,8 @@ router.get('/:projectKey/:bugId', authMiddleware, async (req, res) => {
     }
     
     // Check visibility
-    const isAdmin = req.user.role === 'admin';
-    if (!canUserViewBug(bug, req.user.username, isAdmin)) {
+    const isPrivileged = hasElevatedPrivileges(req.user);
+    if (!canUserViewBug(bug, req.user.username, isPrivileged)) {
       return res.status(403).json({ error: 'You do not have permission to view this bug' });
     }
     
@@ -192,9 +202,9 @@ router.put('/:projectKey/:bugId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Bug not found' });
     }
     
-    // Check if user can edit (admin, assignee, reporter, or in ARB)
-    const isAdmin = req.user.role === 'admin';
-    if (!canUserViewBug(bug, req.user.username, isAdmin)) {
+    // Check if user can edit (privileged users, assignee, reporter, or in ARB)
+    const isPrivileged = hasElevatedPrivileges(req.user);
+    if (!canUserViewBug(bug, req.user.username, isPrivileged)) {
       return res.status(403).json({ error: 'You do not have permission to edit this bug' });
     }
 
@@ -239,8 +249,8 @@ router.post('/:projectKey/:bugId/comment', authMiddleware, async (req, res) => {
     }
     
     // Check visibility before allowing comment
-    const isAdmin = req.user.role === 'admin';
-    if (!canUserViewBug(bug, req.user.username, isAdmin)) {
+    const isPrivileged = hasElevatedPrivileges(req.user);
+    if (!canUserViewBug(bug, req.user.username, isPrivileged)) {
       return res.status(403).json({ error: 'You do not have permission to comment on this bug' });
     }
 
@@ -257,12 +267,12 @@ router.post('/:projectKey/:bugId/comment', authMiddleware, async (req, res) => {
   }
 });
 
-// Delete bug (admin only)
+// Delete bug (admin and godmode only)
 router.delete('/:projectKey/:bugId', authMiddleware, async (req, res) => {
   try {
-    // Only admin can delete bugs
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can delete bugs' });
+    // Only privileged users can delete bugs
+    if (!hasElevatedPrivileges(req.user)) {
+      return res.status(403).json({ error: 'Only admins and super users can delete bugs' });
     }
     
     const deleted = await storage.deleteBug(req.params.bugId);
@@ -286,4 +296,3 @@ router.get('/stats/:projectKey', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
-

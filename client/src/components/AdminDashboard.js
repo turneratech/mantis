@@ -17,9 +17,21 @@ function AdminDashboard() {
   const fetchAnalytics = async () => {
     try {
       const res = await axios.get('/api/analytics/overview');
-      setData(res.data);
+      console.log('Analytics API response:', res.data);
+      console.log('overallStats:', res.data?.overallStats);
+      console.log('totalBugs type:', typeof res.data?.overallStats?.totalBugs);
+      console.log('totalBugs value:', res.data?.overallStats?.totalBugs);
+      
+      // Validate response structure
+      if (res.data && typeof res.data === 'object') {
+        setData(res.data);
+      } else {
+        console.error('Invalid analytics response format:', res.data);
+        setData(null);
+      }
     } catch (error) {
       console.error('Error fetching analytics:', error);
+      console.error('Error details:', error.response?.data || error.message);
     } finally {
       setLoading(false);
     }
@@ -49,6 +61,33 @@ function AdminDashboard() {
     return <div className="empty-state"><h3>Unable to load analytics</h3></div>;
   }
 
+  // Safely get overallStats with defaults
+  const stats = data.overallStats || {};
+  
+  // FIX: Handle both numbers and string numbers (from BigInt conversion)
+  const safeNum = (val) => {
+    if (val === null || val === undefined) return 0;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) ? 0 : parsed;
+    }
+    if (typeof val === 'bigint') return Number(val);
+    return 0;
+  };
+
+  // Map API property names (may vary between implementations)
+  // API may return either "totalBugs" or "total", "openBugs" or "open", etc.
+  const totalBugs = safeNum(stats.totalBugs ?? stats.total);
+  const openBugs = safeNum(stats.openBugs ?? stats.open);
+  const inProgressBugs = safeNum(stats.inProgressBugs ?? stats.inProgress);
+  const resolvedBugs = safeNum(stats.resolvedBugs ?? stats.resolved);
+  const closedBugs = safeNum(stats.closedBugs ?? stats.closed);
+  const criticalBugs = safeNum(stats.criticalBugs ?? stats.critical);
+  // Projects and Users might be in overallStats or we count from arrays
+  const totalProjects = safeNum(stats.totalProjects ?? stats.projects ?? data.projectStats?.length);
+  const totalUsers = safeNum(stats.totalUsers ?? stats.users ?? data.userStats?.length);
+
   return (
     <div className="admin-dashboard">
       <div className="dashboard-header">
@@ -59,37 +98,37 @@ function AdminDashboard() {
       {/* Key Metrics */}
       <div className="stats-grid">
         <div className="stat-card primary">
-          <div className="stat-value">{data.overallStats.totalBugs}</div>
+          <div className="stat-value">{totalBugs}</div>
           <div className="stat-label">Total Bugs</div>
         </div>
         <div className="stat-card warning">
-          <div className="stat-value">{data.overallStats.openBugs}</div>
+          <div className="stat-value">{openBugs}</div>
           <div className="stat-label">Open</div>
         </div>
         <div className="stat-card" style={{ background: 'var(--bg-input)' }}>
           <div className="stat-value" style={{ color: '#8b5cf6' }}>
-            {data.overallStats.inProgressBugs}
+            {inProgressBugs}
           </div>
           <div className="stat-label">In Progress</div>
         </div>
         <div className="stat-card success">
-          <div className="stat-value">{data.overallStats.resolvedBugs + data.overallStats.closedBugs}</div>
+          <div className="stat-value">{resolvedBugs + closedBugs}</div>
           <div className="stat-label">Resolved/Closed</div>
         </div>
         <div className="stat-card critical">
-          <div className="stat-value">{data.overallStats.criticalBugs}</div>
+          <div className="stat-value">{criticalBugs}</div>
           <div className="stat-label">Critical</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{data.overallStats.totalProjects}</div>
+          <div className="stat-value">{totalProjects}</div>
           <div className="stat-label">Projects</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{data.overallStats.totalUsers}</div>
+          <div className="stat-value">{totalUsers}</div>
           <div className="stat-label">Users</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{data.avgResolutionTime}d</div>
+          <div className="stat-value">{safeNum(data.avgResolutionTime)}d</div>
           <div className="stat-label">Avg Resolution</div>
         </div>
       </div>
@@ -100,13 +139,13 @@ function AdminDashboard() {
         <div className="card chart-card">
           <h3>Bug Trend (Last 30 Days)</h3>
           <ResponsiveContainer width="100%" height={250}>
-            <AreaChart data={data.bugTrend}>
+            <AreaChart data={data.bugTrend || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis 
                 dataKey="date" 
                 stroke="#94a3b8"
                 tick={{ fontSize: 10 }}
-                tickFormatter={(value) => value.slice(5)}
+                tickFormatter={(value) => value ? value.slice(5) : ''}
               />
               <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} />
               <Tooltip 
@@ -138,7 +177,7 @@ function AdminDashboard() {
         <div className="card chart-card">
           <h3>Weekly Trend (Last 12 Weeks)</h3>
           <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={data.weeklyTrend}>
+            <BarChart data={data.weeklyTrend || []}>
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
               <XAxis dataKey="week" stroke="#94a3b8" tick={{ fontSize: 11 }} />
               <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} />
@@ -162,7 +201,7 @@ function AdminDashboard() {
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
-                data={data.statusDistribution}
+                data={(data.statusDistribution || []).filter(d => d && typeof d.value === 'number')}
                 cx="50%"
                 cy="50%"
                 innerRadius={40}
@@ -171,8 +210,8 @@ function AdminDashboard() {
                 label={({ name, value }) => `${name}: ${value}`}
                 labelLine={{ stroke: '#94a3b8' }}
               >
-                {data.statusDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {(data.statusDistribution || []).filter(d => d && typeof d.value === 'number').map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color || COLORS.status[index % COLORS.status.length]} />
                 ))}
               </Pie>
               <Tooltip 
@@ -188,7 +227,7 @@ function AdminDashboard() {
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
-                data={data.severityDistribution}
+                data={(data.severityDistribution || []).filter(d => d && typeof d.value === 'number')}
                 cx="50%"
                 cy="50%"
                 innerRadius={40}
@@ -197,8 +236,8 @@ function AdminDashboard() {
                 label={({ name, value }) => `${name}: ${value}`}
                 labelLine={{ stroke: '#94a3b8' }}
               >
-                {data.severityDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {(data.severityDistribution || []).filter(d => d && typeof d.value === 'number').map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color || COLORS.severity[index % COLORS.severity.length]} />
                 ))}
               </Pie>
               <Tooltip 
@@ -214,7 +253,7 @@ function AdminDashboard() {
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie
-                data={data.priorityDistribution}
+                data={(data.priorityDistribution || []).filter(d => d && typeof d.value === 'number')}
                 cx="50%"
                 cy="50%"
                 innerRadius={40}
@@ -223,8 +262,8 @@ function AdminDashboard() {
                 label={({ name, value }) => `${name}: ${value}`}
                 labelLine={{ stroke: '#94a3b8' }}
               >
-                {data.priorityDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {(data.priorityDistribution || []).filter(d => d && typeof d.value === 'number').map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color || COLORS.priority[index % COLORS.priority.length]} />
                 ))}
               </Pie>
               <Tooltip 
@@ -242,7 +281,7 @@ function AdminDashboard() {
           <Link to="/projects" className="btn btn-secondary btn-sm">Manage Projects</Link>
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={data.projectStats} layout="vertical">
+          <BarChart data={data.projectStats || []} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
             <XAxis type="number" stroke="#94a3b8" />
             <YAxis 
@@ -282,7 +321,7 @@ function AdminDashboard() {
             </tr>
           </thead>
           <tbody>
-            {data.userStats.map(user => (
+            {(data.userStats || []).map(user => (
               <tr key={user.userId}>
                 <td><strong>{user.username}</strong></td>
                 <td>
@@ -290,14 +329,14 @@ function AdminDashboard() {
                     {user.role}
                   </span>
                 </td>
-                <td>{user.assigned}</td>
+                <td>{safeNum(user.assigned)}</td>
                 <td>
                   <span className={user.assignedOpen > 0 ? 'text-warning' : ''}>
-                    {user.assignedOpen}
+                    {safeNum(user.assignedOpen)}
                   </span>
                 </td>
-                <td className="text-success">{user.resolved}</td>
-                <td>{user.reported}</td>
+                <td className="text-success">{safeNum(user.resolved)}</td>
+                <td>{safeNum(user.reported)}</td>
               </tr>
             ))}
           </tbody>
@@ -323,7 +362,7 @@ function AdminDashboard() {
             </tr>
           </thead>
           <tbody>
-            {data.mostActiveBugs.map(bug => (
+            {(data.mostActiveBugs || []).map(bug => (
               <tr key={bug.bugId}>
                 <td>
                   <Link 
@@ -351,7 +390,7 @@ function AdminDashboard() {
                 </td>
                 <td>{bug.assignee || '-'}</td>
                 <td>
-                  <span className="activity-count">{bug.activityCount} actions</span>
+                  <span className="activity-count">{safeNum(bug.activityCount)} actions</span>
                 </td>
                 <td>{formatDate(bug.lastUpdated)}</td>
               </tr>

@@ -27,6 +27,7 @@ function HelpModal({ isOpen, onClose }) {
     { id: 'bugs', title: 'Bug Management', icon: '🐛' },
     { id: 'fields', title: 'Field Reference', icon: '📝' },
     { id: 'workflow', title: 'Workflow', icon: '🔄' },
+    { id: 'commit-guidelines', title: 'Git Commits', icon: '📤' },
     { id: 'tips', title: 'Tips & Tricks', icon: '💡' },
     { id: 'faq', title: 'FAQ', icon: '❓' },
   ];
@@ -733,6 +734,168 @@ function HelpModal({ isOpen, onClose }) {
           </>
         );
 
+
+      case 'commit-guidelines':
+        return (
+          <>
+            <h2 style={styles.sectionTitle}>📤 Git Commit Guidelines</h2>
+            <p style={styles.sectionSubtitle}>Required commit message format for BugTracker integration.</p>
+            
+            {/* Download PDF Button */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '16px 20px',
+              background: 'linear-gradient(135deg, #4f46e520 0%, #4f46e508 100%)',
+              borderRadius: '12px',
+              border: '1px solid #4f46e540',
+              marginBottom: '16px'
+            }}>
+              <span style={{fontSize: '28px'}}>📄</span>
+              <div style={{flex: 1}}>
+                <div style={{fontWeight: '600', color: '#f1f5f9', fontSize: '14px'}}>Official Documentation</div>
+                <div style={{color: '#94a3b8', fontSize: '13px'}}>Download the complete commit message guidelines PDF</div>
+              </div>
+              <a 
+                href="/bugtracker/docs/Turneratech_Commit_Message_Guidelines.pdf" 
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 18px',
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                  color: 'white',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)'
+                }}
+              >
+                📥 Download PDF
+              </a>
+            </div>
+
+            <div style={{...styles.card, background: 'linear-gradient(135deg, #f59e0b15 0%, #f59e0b05 100%)', borderColor: '#f59e0b40'}}>
+              <h3 style={{...styles.cardTitle, color: '#fbbf24'}}>⚠️ Required Format</h3>
+              <p style={styles.cardText}>Every non-merge commit must satisfy <strong>both</strong> rules:</p>
+              <ul style={{...styles.list, marginTop: '12px'}}>
+                <li style={styles.listItem}><span style={styles.bullet}>•</span><strong>Rule A (First Line):</strong> Must start with a valid Bug ID followed by a colon, then a short description</li>
+                <li style={styles.listItem}><span style={styles.bullet}>•</span><strong>Rule B (Author Line):</strong> Must contain "- Author: name" anywhere in the message</li>
+              </ul>
+            </div>
+
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>🔤 Bug ID Pattern</h3>
+              <p style={styles.cardText}>Bug IDs must use <strong>uppercase</strong> project keys and digits:</p>
+              <div style={{...styles.fieldRow, marginTop: '12px', fontFamily: 'monospace', background: '#0f172a'}}>
+                <code style={{color: '#a78bfa'}}>&lt;PROJECT&gt;-&lt;NUMBER&gt;</code>
+              </div>
+              <p style={{...styles.cardText, marginTop: '12px', fontSize: '13px'}}>
+                Where PROJECT is 2-10 letters (A-Z) and NUMBER is 1-6 digits.
+              </p>
+              <div style={{marginTop: '12px'}}>
+                <span style={{...styles.badge('#10b981'), marginRight: '8px'}}>WD-2</span>
+                <span style={{...styles.badge('#10b981'), marginRight: '8px'}}>WD-0002</span>
+                <span style={{...styles.badge('#10b981'), marginRight: '8px'}}>GRN-0005</span>
+                <span style={{...styles.badge('#10b981'), marginRight: '8px'}}>SM-42</span>
+                <span style={{...styles.badge('#10b981')}}>BH-0015</span>
+              </div>
+            </div>
+
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>👤 Author Line Pattern</h3>
+              <p style={styles.cardText}>Include an author line anywhere in the commit message:</p>
+              <div style={{...styles.fieldRow, marginTop: '12px', fontFamily: 'monospace', background: '#0f172a'}}>
+                <code style={{color: '#a78bfa'}}>- Author: &lt;name&gt;</code>
+              </div>
+              <p style={{...styles.cardText, marginTop: '8px', fontSize: '13px'}}>
+                Case-insensitive, whitespace tolerant
+              </p>
+            </div>
+
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>✅ Valid Examples</h3>
+              
+              <p style={{...styles.cardText, fontWeight: '600', marginBottom: '8px'}}>Multi-line example (author on separate line):</p>
+              <div style={{background: '#0f172a', borderRadius: '8px', padding: '16px', fontFamily: 'monospace', fontSize: '13px', marginBottom: '16px', border: '1px solid #334155'}}>
+                <div style={{color: '#10b981'}}>WD-0003: fix legend size and emission labeling</div>
+                <div style={{color: '#94a3b8', marginTop: '8px'}}>- Updated legend sizing to avoid truncation</div>
+                <div style={{color: '#94a3b8'}}>- Converted estimated values to calculated values</div>
+                <div style={{color: '#a78bfa'}}>- Author: abhishek.m</div>
+              </div>
+
+              <p style={{...styles.cardText, fontWeight: '600', marginBottom: '8px'}}>Single-line example:</p>
+              <div style={{background: '#0f172a', borderRadius: '8px', padding: '16px', fontFamily: 'monospace', fontSize: '13px', border: '1px solid #334155'}}>
+                <div style={{color: '#10b981'}}>GRN-0005: improve light theme palette <span style={{color: '#a78bfa'}}>- Author: abhishek.m</span></div>
+              </div>
+            </div>
+
+            <div style={styles.grid}>
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>📝 Best Practices</h3>
+                <ul style={styles.list}>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>Keep first line short (50-72 chars)</li>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>Use imperative mood ("Fix", "Add", "Update")</li>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>Explain "what" and "why" in the body</li>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>One logical change per commit</li>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>Wrap body lines at ~72 characters</li>
+                </ul>
+              </div>
+
+              <div style={styles.card}>
+                <h3 style={styles.cardTitle}>🚫 Avoid</h3>
+                <ul style={styles.list}>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>"WIP" or "temp" commits on shared branches</li>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>Secrets, credentials, or private keys</li>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>Customer data or internal URLs</li>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>Copying large logs (link to issues instead)</li>
+                  <li style={styles.listItem}><span style={styles.bullet}>•</span>Lowercase project keys (use BT-0001, not bt-0001)</li>
+                </ul>
+              </div>
+            </div>
+
+            <div style={styles.card}>
+              <h3 style={styles.cardTitle}>🔧 Fixing Rejected Commits</h3>
+              <p style={styles.cardText}>If validation fails, update your commit message locally:</p>
+              
+              <div style={{marginTop: '16px'}}>
+                <p style={{...styles.cardText, fontWeight: '600', fontSize: '13px', marginBottom: '4px'}}>Amend the most recent commit:</p>
+                <div style={{background: '#0f172a', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '13px', marginBottom: '12px'}}>
+                  <code style={{color: '#a78bfa'}}>git commit --amend</code>
+                </div>
+
+                <p style={{...styles.cardText, fontWeight: '600', fontSize: '13px', marginBottom: '4px'}}>Reword older commits (interactive rebase):</p>
+                <div style={{background: '#0f172a', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '13px', marginBottom: '12px'}}>
+                  <code style={{color: '#a78bfa'}}>git rebase -i &lt;base-commit&gt;</code>
+                  <div style={{color: '#64748b', marginTop: '4px'}}># mark commits as 'reword'</div>
+                </div>
+
+                <p style={{...styles.cardText, fontWeight: '600', fontSize: '13px', marginBottom: '4px'}}>Push after rewriting history:</p>
+                <div style={{background: '#0f172a', borderRadius: '6px', padding: '10px 14px', fontFamily: 'monospace', fontSize: '13px'}}>
+                  <code style={{color: '#a78bfa'}}>git push --force-with-lease</code>
+                </div>
+              </div>
+            </div>
+
+            <div style={styles.tipCard}>
+              <span style={styles.tipIcon}>💡</span>
+              <div style={styles.tipContent}>
+                <div style={styles.tipTitle}>Pull Request Note</div>
+                <div style={styles.tipText}>
+                  If your repository uses squash merges, ensure the final squash commit message also follows 
+                  the required format. Merge commits may be skipped by the validator, but individual commits 
+                  in PR branches are still validated.
+                </div>
+              </div>
+            </div>
+          </>
+        );
+
       case 'tips':
         return (
           <>
@@ -780,7 +943,7 @@ function HelpModal({ isOpen, onClose }) {
             </div>
 
             <div style={styles.tipCard}>
-              <span style={styles.tipIcon}>🔗</span>
+              <span style={styles.tipIcon}>🔔</span>
               <div style={styles.tipContent}>
                 <div style={styles.tipTitle}>Reference Related Bugs</div>
                 <div style={styles.tipText}>Mention related bug IDs in comments (e.g., "Related to BT-0042") to create connections.</div>
@@ -812,7 +975,7 @@ function HelpModal({ isOpen, onClose }) {
             <p style={styles.sectionSubtitle}>Quick answers to commonly asked questions.</p>
             
             <FAQ question="How do I reset my password?">
-              Click the 🔒 icon next to your username in the navigation bar. Enter your current password 
+              Click the 🔙 icon next to your username in the navigation bar. Enter your current password 
               and new password to update it.
             </FAQ>
 
@@ -872,7 +1035,7 @@ function HelpModal({ isOpen, onClose }) {
             onMouseOver={e => e.target.style.background = 'rgba(255,255,255,0.3)'}
             onMouseOut={e => e.target.style.background = 'rgba(255,255,255,0.2)'}
           >
-            ✕
+            ✅
           </button>
         </div>
 

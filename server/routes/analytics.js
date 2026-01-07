@@ -3,14 +3,36 @@
  * Uses storage abstraction layer for data access
  * 
  * ROLES:
- * - godmode: Full access to all analytics
- * - admin: Full access to all analytics
+ * - godmode: Full access to all analytics and reports
+ * - admin: Full access to all analytics and reports
  * - user: Limited to user dashboard
  */
 
 const express = require('express');
+const path = require('path');
+const fs = require('fs');
 const storage = require('../storage');
 const { authMiddleware } = require('../middleware/auth');
+
+// Logo path configuration - adjust based on your project structure
+const getLogoPath = () => {
+  const possiblePaths = [
+    path.join(__dirname, '../public/bugtracker/imgs/logo_small.png'),
+    path.join(__dirname, '../public/imgs/logo_small.png'),
+    path.join(__dirname, '../../public/bugtracker/imgs/logo_small.png'),
+    path.join(__dirname, '../../client/public/bugtracker/imgs/logo_small.png'),
+    path.join(__dirname, '../static/bugtracker/imgs/logo_small.png'),
+    path.join(__dirname, '../assets/logo_small.png'),
+    path.join(__dirname, '../imgs/logo_small.png')
+  ];
+  
+  for (const logoPath of possiblePaths) {
+    if (fs.existsSync(logoPath)) {
+      return logoPath;
+    }
+  }
+  return null;
+};
 
 const router = express.Router();
 
@@ -45,5 +67,987 @@ router.get('/user-dashboard', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// ==================== REPORT GENERATION ENDPOINTS ====================
+
+// Generate report data for preview
+router.post('/report-data', authMiddleware, async (req, res) => {
+  try {
+    if (!hasElevatedPrivileges(req.user)) {
+      return res.status(403).json({ error: 'God mode access required for report generation' });
+    }
+
+    const { reportType, startDate, endDate, projects } = req.body;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start and end dates are required' });
+    }
+
+    const reportData = await generateReportData(reportType, startDate, endDate, projects);
+    res.json(reportData);
+  } catch (error) {
+    console.error('Error generating report data:', error);
+    res.status(500).json({ error: 'Failed to generate report data' });
+  }
+});
+
+// Generate PDF report
+router.post('/generate-report', authMiddleware, async (req, res) => {
+  try {
+    if (!hasElevatedPrivileges(req.user)) {
+      return res.status(403).json({ error: 'God mode access required for report generation' });
+    }
+
+    const { reportType, startDate, endDate, projects, reportData } = req.body;
+    
+    let data = reportData;
+    if (!data) {
+      data = await generateReportData(reportType, startDate, endDate, projects);
+    }
+
+    const pdfBuffer = await generatePDFReport(data, reportType, startDate, endDate, req.user.username);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=BugTracker_${reportType}_Report_${startDate}_to_${endDate}.pdf`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Error generating PDF report:', error);
+    res.status(500).json({ error: 'Failed to generate PDF report' });
+  }
+});
+
+// ==================== REPORT DATA GENERATION HELPERS ====================
+
+async function generateReportData(reportType, startDate, endDate, projectKeys) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  end.setHours(23, 59, 59, 999);
+
+  // Get all bugs
+  let allBugs = [];
+  try {
+    allBugs = await storage.getAllBugs();
+  } catch (e) {
+    console.error('Error fetching bugs:', e);
+    allBugs = [];
+  }
+
+  // Filter bugs by project if specified
+  if (projectKeys && projectKeys.length > 0) {
+    allBugs = allBugs.filter(bug => projectKeys.includes(bug.projectKey));
+  }
+
+  // Get bugs created/resolved in date range
+  const bugsInRange = allBugs.filter(bug => {
+    const created = new Date(bug.createdAt);
+    return created >= start && created <= end;
+  });
+
+  const bugsResolvedInRange = allBugs.filter(bug => {
+    if (!bug.resolvedAt && bug.status !== 'Resolved' && bug.status !== 'Closed') return false;
+    const resolved = bug.resolvedAt ? new Date(bug.resolvedAt) : new Date(bug.updatedAt);
+    return resolved >= start && resolved <= end && (bug.status === 'Resolved' || bug.status === 'Closed');
+  });
+
+  // Calculate summary metrics
+  const summary = {
+    totalBugsCreated: bugsInRange.length,
+    totalBugsResolved: bugsResolvedInRange.length,
+    netChange: bugsInRange.length - bugsResolvedInRange.length,
+    avgResolutionTime: calculateAvgResolutionTime(bugsResolvedInRange),
+    criticalBugs: allBugs.filter(b => b.severity === 'Critical' && b.status !== 'Closed' && b.status !== 'Resolved').length,
+    resolutionRate: bugsInRange.length > 0 ? (bugsResolvedInRange.length / bugsInRange.length) * 100 : 0,
+    highlights: generateHighlights(bugsInRange, bugsResolvedInRange, allBugs)
+  };
+
+  // ARB Trend (daily resolution rates)
+  const arbTrend = generateARBTrend(allBugs, start, end);
+
+  // Project comparison
+  const projectComparison = await generateProjectComparison(allBugs, bugsInRange, bugsResolvedInRange, projectKeys);
+
+  // Assignee performance
+  const assigneePerformance = generateAssigneePerformance(allBugs, bugsResolvedInRange, start, end);
+
+  // Severity distribution
+  const severityDistribution = generateDistribution(bugsInRange, 'severity', {
+    Critical: '#dc2626',
+    High: '#f97316',
+    Medium: '#eab308',
+    Low: '#22c55e'
+  });
+
+  // Priority distribution
+  const priorityDistribution = generateDistribution(bugsInRange, 'priority', {
+    Critical: '#dc2626',
+    High: '#f97316',
+    Medium: '#eab308',
+    Low: '#22c55e'
+  });
+
+  // Daily activity
+  const dailyActivity = generateDailyActivity(allBugs, start, end);
+
+  // Project health
+  const projectHealth = await generateProjectHealth(allBugs, projectKeys);
+
+  // Critical bugs requiring attention
+  const criticalBugs = allBugs
+    .filter(b => (b.severity === 'Critical' || b.severity === 'High' || b.priority === 'Critical' || b.priority === 'High') 
+      && b.status !== 'Closed' && b.status !== 'Resolved')
+    .map(b => ({
+      ...b,
+      age: Math.floor((new Date() - new Date(b.createdAt)) / (1000 * 60 * 60 * 24))
+    }))
+    .sort((a, b) => {
+      const severityOrder = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+      return (severityOrder[a.severity] || 3) - (severityOrder[b.severity] || 3);
+    });
+
+  // Week over week comparison (for weekly reports)
+  let weekOverWeek = null;
+  if (reportType === 'weekly') {
+    weekOverWeek = generateWeekOverWeek(allBugs, start, end);
+  }
+
+  // Activity summary
+  const activitySummary = await generateActivitySummary(allBugs, start, end);
+
+  return {
+    summary,
+    arbTrend,
+    projectComparison,
+    assigneePerformance,
+    severityDistribution,
+    priorityDistribution,
+    dailyActivity,
+    projectHealth,
+    criticalBugs,
+    weekOverWeek,
+    activitySummary
+  };
+}
+
+function calculateAvgResolutionTime(resolvedBugs) {
+  if (resolvedBugs.length === 0) return 0;
+  
+  const times = resolvedBugs
+    .filter(b => b.createdAt && (b.resolvedAt || b.updatedAt))
+    .map(b => {
+      const created = new Date(b.createdAt);
+      const resolved = b.resolvedAt ? new Date(b.resolvedAt) : new Date(b.updatedAt);
+      return (resolved - created) / (1000 * 60 * 60 * 24);
+    })
+    .filter(t => t >= 0 && t < 365);
+
+  if (times.length === 0) return 0;
+  return times.reduce((a, b) => a + b, 0) / times.length;
+}
+
+function generateHighlights(bugsCreated, bugsResolved, allBugs) {
+  const highlights = [];
+  
+  if (bugsResolved.length > bugsCreated.length) {
+    highlights.push(`Bug backlog reduced by ${bugsResolved.length - bugsCreated.length} bugs.`);
+  } else if (bugsCreated.length > bugsResolved.length) {
+    highlights.push(`Bug backlog increased by ${bugsCreated.length - bugsResolved.length} bugs.`);
+  }
+
+  const criticalOpen = allBugs.filter(b => b.severity === 'Critical' && b.status !== 'Closed' && b.status !== 'Resolved').length;
+  if (criticalOpen > 0) {
+    highlights.push(`${criticalOpen} critical bugs require immediate attention.`);
+  }
+
+  const resolutionRate = bugsCreated.length > 0 ? (bugsResolved.length / bugsCreated.length) * 100 : 0;
+  if (resolutionRate >= 100) {
+    highlights.push('Excellent performance - resolution rate exceeds 100%!');
+  } else if (resolutionRate >= 75) {
+    highlights.push('Good resolution rate maintained above 75%.');
+  } else if (resolutionRate < 50) {
+    highlights.push('Resolution rate below 50% - needs improvement.');
+  }
+
+  return highlights.join(' ') || 'Standard performance period with no significant highlights.';
+}
+
+function generateARBTrend(bugs, start, end) {
+  const trend = [];
+  const current = new Date(start);
+  
+  while (current <= end) {
+    const dayStart = new Date(current);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(current);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const created = bugs.filter(b => {
+      const d = new Date(b.createdAt);
+      return d >= dayStart && d <= dayEnd;
+    }).length;
+
+    const resolved = bugs.filter(b => {
+      if (b.status !== 'Resolved' && b.status !== 'Closed') return false;
+      const d = b.resolvedAt ? new Date(b.resolvedAt) : new Date(b.updatedAt);
+      return d >= dayStart && d <= dayEnd;
+    }).length;
+
+    const resolutionRate = created > 0 ? (resolved / created) * 100 : (resolved > 0 ? 100 : 0);
+
+    trend.push({
+      date: current.toISOString().split('T')[0],
+      created,
+      resolved,
+      resolutionRate: Math.round(resolutionRate * 10) / 10
+    });
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  return trend;
+}
+
+async function generateProjectComparison(allBugs, bugsCreated, bugsResolved, projectKeys) {
+  const projects = {};
+  
+  try {
+    const allProjects = await storage.getAllProjects(null, true);
+    allProjects.forEach(p => {
+      const key = p.projectKey || p.key;
+      if (!projectKeys || projectKeys.length === 0 || projectKeys.includes(key)) {
+        projects[key] = { projectKey: key, projectName: p.name, created: 0, resolved: 0 };
+      }
+    });
+  } catch (e) {
+    console.error('Error fetching projects:', e);
+  }
+
+  bugsCreated.forEach(bug => {
+    if (projects[bug.projectKey]) {
+      projects[bug.projectKey].created++;
+    }
+  });
+
+  bugsResolved.forEach(bug => {
+    if (projects[bug.projectKey]) {
+      projects[bug.projectKey].resolved++;
+    }
+  });
+
+  return Object.values(projects).sort((a, b) => (b.created + b.resolved) - (a.created + a.resolved));
+}
+
+function generateAssigneePerformance(allBugs, resolvedBugs, start, end) {
+  const assignees = {};
+
+  allBugs.forEach(bug => {
+    if (!bug.assignee) return;
+    
+    if (!assignees[bug.assignee]) {
+      assignees[bug.assignee] = {
+        username: bug.assignee,
+        assigned: 0,
+        resolved: 0,
+        open: 0,
+        inProgress: 0,
+        resolutionTimes: []
+      };
+    }
+
+    assignees[bug.assignee].assigned++;
+    
+    if (bug.status === 'Open') assignees[bug.assignee].open++;
+    else if (bug.status === 'In Progress') assignees[bug.assignee].inProgress++;
+    else if (bug.status === 'Resolved' || bug.status === 'Closed') {
+      assignees[bug.assignee].resolved++;
+      
+      if (bug.createdAt) {
+        const created = new Date(bug.createdAt);
+        const resolved = bug.resolvedAt ? new Date(bug.resolvedAt) : new Date(bug.updatedAt);
+        const days = (resolved - created) / (1000 * 60 * 60 * 24);
+        if (days >= 0 && days < 365) {
+          assignees[bug.assignee].resolutionTimes.push(days);
+        }
+      }
+    }
+  });
+
+  return Object.values(assignees).map(a => ({
+    ...a,
+    resolutionRate: a.assigned > 0 ? (a.resolved / a.assigned) * 100 : 0,
+    avgResolutionTime: a.resolutionTimes.length > 0 
+      ? a.resolutionTimes.reduce((x, y) => x + y, 0) / a.resolutionTimes.length 
+      : null
+  })).sort((a, b) => b.resolved - a.resolved);
+}
+
+function generateDistribution(bugs, field, colors) {
+  const counts = {};
+  bugs.forEach(bug => {
+    const value = bug[field] || 'Unknown';
+    counts[value] = (counts[value] || 0) + 1;
+  });
+
+  return Object.entries(counts).map(([name, value]) => ({
+    name,
+    value,
+    color: colors[name] || '#6b7280'
+  }));
+}
+
+function generateDailyActivity(bugs, start, end) {
+  const activity = [];
+  const current = new Date(start);
+
+  while (current <= end) {
+    const dayStart = new Date(current);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(current);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const created = bugs.filter(b => {
+      const d = new Date(b.createdAt);
+      return d >= dayStart && d <= dayEnd;
+    }).length;
+
+    const resolved = bugs.filter(b => {
+      if (b.status !== 'Resolved' && b.status !== 'Closed') return false;
+      const d = b.resolvedAt ? new Date(b.resolvedAt) : new Date(b.updatedAt);
+      return d >= dayStart && d <= dayEnd;
+    }).length;
+
+    activity.push({
+      date: current.toISOString().split('T')[0],
+      created,
+      resolved
+    });
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  return activity;
+}
+
+async function generateProjectHealth(allBugs, projectKeys) {
+  const health = [];
+  
+  try {
+    const projects = await storage.getAllProjects(null, true);
+    
+    for (const project of projects) {
+      const key = project.projectKey || project.key;
+      if (projectKeys && projectKeys.length > 0 && !projectKeys.includes(key)) continue;
+
+      const projectBugs = allBugs.filter(b => b.projectKey === key);
+      const total = projectBugs.length;
+      const open = projectBugs.filter(b => b.status === 'Open').length;
+      const inProgress = projectBugs.filter(b => b.status === 'In Progress').length;
+      const resolved = projectBugs.filter(b => b.status === 'Resolved' || b.status === 'Closed').length;
+      const critical = projectBugs.filter(b => b.severity === 'Critical' && b.status !== 'Closed' && b.status !== 'Resolved').length;
+
+      let healthScore = 100;
+      if (total > 0) {
+        const openRate = (open + inProgress) / total;
+        healthScore -= openRate * 30;
+        healthScore -= critical * 10;
+        healthScore += (resolved / total) * 20;
+      }
+      healthScore = Math.max(0, Math.min(100, healthScore));
+
+      health.push({
+        projectKey: key,
+        projectName: project.name,
+        total,
+        open,
+        inProgress,
+        resolved,
+        critical,
+        healthScore
+      });
+    }
+  } catch (e) {
+    console.error('Error generating project health:', e);
+  }
+
+  return health.sort((a, b) => b.total - a.total);
+}
+
+function generateWeekOverWeek(bugs, currentStart, currentEnd) {
+  const prevStart = new Date(currentStart);
+  prevStart.setDate(prevStart.getDate() - 7);
+  const prevEnd = new Date(currentStart);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+  prevEnd.setHours(23, 59, 59, 999);
+
+  const currentCreated = bugs.filter(b => {
+    const d = new Date(b.createdAt);
+    return d >= currentStart && d <= currentEnd;
+  }).length;
+
+  const currentResolved = bugs.filter(b => {
+    if (b.status !== 'Resolved' && b.status !== 'Closed') return false;
+    const d = b.resolvedAt ? new Date(b.resolvedAt) : new Date(b.updatedAt);
+    return d >= currentStart && d <= currentEnd;
+  }).length;
+
+  const prevCreated = bugs.filter(b => {
+    const d = new Date(b.createdAt);
+    return d >= prevStart && d <= prevEnd;
+  }).length;
+
+  const prevResolved = bugs.filter(b => {
+    if (b.status !== 'Resolved' && b.status !== 'Closed') return false;
+    const d = b.resolvedAt ? new Date(b.resolvedAt) : new Date(b.updatedAt);
+    return d >= prevStart && d <= prevEnd;
+  }).length;
+
+  const currentRate = currentCreated > 0 ? (currentResolved / currentCreated) * 100 : (currentResolved > 0 ? 100 : 0);
+  const prevRate = prevCreated > 0 ? (prevResolved / prevCreated) * 100 : (prevResolved > 0 ? 100 : 0);
+
+  return {
+    currentWeek: { created: currentCreated, resolved: currentResolved, rate: currentRate },
+    previousWeek: { created: prevCreated, resolved: prevResolved, rate: prevRate },
+    createdChange: prevCreated > 0 ? ((currentCreated - prevCreated) / prevCreated) * 100 : 0,
+    resolvedChange: prevResolved > 0 ? ((currentResolved - prevResolved) / prevResolved) * 100 : 0,
+    rateChange: prevRate > 0 ? currentRate - prevRate : 0
+  };
+}
+
+async function generateActivitySummary(bugs, start, end) {
+  let comments = 0;
+  let statusChanges = 0;
+  let reassignments = 0;
+  let commits = 0;
+
+  bugs.forEach(bug => {
+    const activities = bug.activityLog || bug.activities || [];
+    activities.forEach(activity => {
+      const actDate = new Date(activity.timestamp || activity.date);
+      if (actDate < start || actDate > end) return;
+
+      const action = (activity.action || '').toLowerCase();
+      if (action.includes('comment')) comments++;
+      else if (action.includes('status')) statusChanges++;
+      else if (action.includes('assign') || action.includes('reassign')) reassignments++;
+      else if (action.includes('commit')) commits++;
+    });
+  });
+
+  return { comments, statusChanges, reassignments, commits };
+}
+
+// ==================== PDF GENERATION ====================
+
+async function generatePDFReport(data, reportType, startDate, endDate, generatedBy) {
+  // Dynamic import for PDFKit
+  let PDFDocument;
+  try {
+    PDFDocument = require('pdfkit');
+  } catch (e) {
+    console.error('PDFKit not installed. Installing...');
+    throw new Error('PDFKit library not available. Please install with: npm install pdfkit');
+  }
+
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ 
+        size: 'A4', 
+        margins: { top: 50, bottom: 70, left: 50, right: 50 },
+        info: {
+          Title: `BugTracker ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`,
+          Author: 'BugTracker System',
+          Subject: `Bug Tracking Report from ${startDate} to ${endDate}`,
+          Creator: 'BugTracker Report Generator'
+        }
+      });
+
+      const buffers = [];
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => {
+        const pdfData = Buffer.concat(buffers);
+        resolve(pdfData);
+      });
+      doc.on('error', reject);
+
+      const pageWidth = doc.page.width - 100;
+      let pageNum = 0;
+
+      // Colors
+      const colors = {
+        primary: '#4f46e5',
+        success: '#10b981',
+        warning: '#f59e0b',
+        danger: '#ef4444',
+        dark: '#1e293b',
+        gray: '#64748b',
+        lightGray: '#94a3b8'
+      };
+
+      // Get logo path
+      const logoPath = getLogoPath();
+
+      // Helper function to add footer to current page (called manually, not via event)
+      const addPageFooter = (pageNumber) => {
+        const savedY = doc.y;
+        doc.fontSize(8)
+           .fillColor(colors.gray)
+           .text('CONFIDENTIAL - BugTracker Internal Report - Do Not Distribute', 50, doc.page.height - 50, { align: 'center', width: pageWidth })
+           .text(`Generated on ${new Date().toLocaleDateString()} by ${generatedBy} | Page ${pageNumber}`, 50, doc.page.height - 38, { align: 'center', width: pageWidth });
+        doc.y = savedY;
+      };
+
+      // Helper function to add page header with logo (for pages after cover)
+      const addPageHeader = () => {
+        if (logoPath) {
+          try {
+            doc.image(logoPath, doc.page.width - 80, 15, { width: 24, height: 24 });
+            doc.fontSize(8)
+               .fillColor(colors.gray)
+               .text('BugTracker', doc.page.width - 80, 42, { width: 50, align: 'left' });
+          } catch (e) {
+            // Logo not available, skip
+          }
+        }
+      };
+
+      // ==================== COVER PAGE ====================
+      pageNum = 1;
+      doc.rect(0, 0, doc.page.width, 200).fill(colors.primary);
+      
+      // Add logo to cover page
+      let titleStartX = 50;
+      if (logoPath) {
+        try {
+          doc.image(logoPath, 50, 50, { width: 60, height: 60 });
+          titleStartX = 120; // Move title to the right of logo
+        } catch (e) {
+          // Logo not available, continue without it
+          console.log('Logo not found at expected path, generating PDF without logo');
+        }
+      }
+      
+      doc.fontSize(32)
+         .fillColor('white')
+         .text('BugTracker', titleStartX, 55)
+         .fontSize(24)
+         .text(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`, titleStartX, 95);
+
+      doc.fontSize(14)
+         .text(`${formatDateRange(startDate, endDate)}`, titleStartX, 135);
+
+      doc.fontSize(12)
+         .fillColor(colors.dark)
+         .text(`Generated: ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`, 50, 230)
+         .text(`Generated by: ${generatedBy}`, 50, 248);
+
+      // Executive Summary Box
+      doc.moveDown(2);
+      drawSectionHeader(doc, 'Executive Summary', 50, doc.y, pageWidth, colors);
+
+      const summary = data.summary || {};
+      doc.moveDown(0.5);
+      
+      // Summary metrics in a grid
+      const metricsY = doc.y;
+      const metricWidth = pageWidth / 3;
+      
+      drawMetricBox(doc, 'Bugs Filed', summary.totalBugsCreated || 0, 50, metricsY, metricWidth - 10, colors.primary);
+      drawMetricBox(doc, 'Bugs Resolved', summary.totalBugsResolved || 0, 50 + metricWidth, metricsY, metricWidth - 10, colors.success);
+      drawMetricBox(doc, 'Net Change', summary.netChange || 0, 50 + metricWidth * 2, metricsY, metricWidth - 10, summary.netChange > 0 ? colors.warning : colors.success);
+
+      doc.y = metricsY + 70;
+      
+      drawMetricBox(doc, 'Avg Resolution', `${(summary.avgResolutionTime || 0).toFixed(1)}d`, 50, doc.y, metricWidth - 10, colors.gray);
+      drawMetricBox(doc, 'Critical Bugs', summary.criticalBugs || 0, 50 + metricWidth, doc.y, metricWidth - 10, colors.danger);
+      drawMetricBox(doc, 'Resolution Rate', `${(summary.resolutionRate || 0).toFixed(1)}%`, 50 + metricWidth * 2, doc.y, metricWidth - 10, colors.primary);
+
+      doc.y += 80;
+      doc.fontSize(10)
+         .fillColor(colors.dark)
+         .text('Highlights:', 50, doc.y, { continued: true, underline: true })
+         .text(' ' + (summary.highlights || 'No highlights'), { underline: false });
+
+      addPageFooter(pageNum);
+
+      // ==================== PAGE 2: PROJECT COMPARISON ====================
+      doc.addPage();
+      pageNum++;
+      addPageHeader();
+      
+      drawSectionHeader(doc, 'Bug Filed vs Resolved per Project', 50, 50, pageWidth, colors);
+      doc.y = 90;
+
+      const projectData = data.projectComparison || [];
+      if (projectData.length > 0) {
+        drawTableSimple(doc, 50, doc.y, pageWidth, 
+          ['Project', 'Name', 'Filed', 'Resolved', 'Net', 'Rate'],
+          projectData.slice(0, 15).map(p => [
+            String(p.projectKey || ''),
+            truncateText(String(p.projectName || ''), 20),
+            String(p.created || 0),
+            String(p.resolved || 0),
+            String((p.created || 0) - (p.resolved || 0)),
+            p.created > 0 ? `${((p.resolved / p.created) * 100).toFixed(0)}%` : '0%'
+          ]),
+          colors
+        );
+      }
+
+      doc.y += 30;
+      drawSectionHeader(doc, 'Project Health Summary', 50, doc.y, pageWidth, colors);
+      doc.y += 40;
+
+      const healthData = data.projectHealth || [];
+      if (healthData.length > 0) {
+        drawTableSimple(doc, 50, doc.y, pageWidth,
+          ['Project', 'Total', 'Open', 'In Progress', 'Resolved', 'Critical', 'Health'],
+          healthData.slice(0, 10).map(p => [
+            String(p.projectKey || ''),
+            String(p.total || 0),
+            String(p.open || 0),
+            String(p.inProgress || 0),
+            String(p.resolved || 0),
+            String(p.critical || 0),
+            `${(p.healthScore || 0).toFixed(0)}/100`
+          ]),
+          colors
+        );
+      }
+
+      addPageFooter(pageNum);
+
+      // ==================== PAGE 3: ASSIGNEE PERFORMANCE ====================
+      doc.addPage();
+      pageNum++;
+      addPageHeader();
+      
+      drawSectionHeader(doc, 'Assignee Bug Resolution Status', 50, 50, pageWidth, colors);
+      doc.y = 90;
+
+      const assigneeData = data.assigneePerformance || [];
+      if (assigneeData.length > 0) {
+        drawTableSimple(doc, 50, doc.y, pageWidth,
+          ['Assignee', 'Assigned', 'Resolved', 'Open', 'In Progress', 'Rate', 'Avg Time'],
+          assigneeData.slice(0, 20).map(a => [
+            truncateText(String(a.username || ''), 15),
+            String(a.assigned || 0),
+            String(a.resolved || 0),
+            String(a.open || 0),
+            String(a.inProgress || 0),
+            `${(a.resolutionRate || 0).toFixed(1)}%`,
+            a.avgResolutionTime ? `${a.avgResolutionTime.toFixed(1)}d` : '-'
+          ]),
+          colors
+        );
+      }
+
+      addPageFooter(pageNum);
+
+      // ==================== PAGE 4: CRITICAL BUGS ====================
+      doc.addPage();
+      pageNum++;
+      addPageHeader();
+      
+      drawSectionHeader(doc, 'Critical & High Priority Bugs (Requires Attention)', 50, 50, pageWidth, colors);
+      doc.y = 90;
+
+      const criticalBugs = data.criticalBugs || [];
+      if (criticalBugs.length > 0) {
+        drawTableSimple(doc, 50, doc.y, pageWidth,
+          ['Bug ID', 'Title', 'Severity', 'Priority', 'Assignee', 'Age', 'Status'],
+          criticalBugs.slice(0, 20).map(b => [
+            String(b.bugId || ''),
+            truncateText(String(b.title || ''), 25),
+            String(b.severity || ''),
+            String(b.priority || ''),
+            truncateText(String(b.assignee || '-'), 12),
+            `${b.age || 0}d`,
+            String(b.status || '')
+          ]),
+          colors
+        );
+
+        if (criticalBugs.length > 20) {
+          doc.y += 10;
+          doc.fontSize(9)
+             .fillColor(colors.gray)
+             .text(`... and ${criticalBugs.length - 20} more critical/high priority bugs`, 50, doc.y);
+        }
+      } else {
+        doc.fontSize(11)
+           .fillColor(colors.success)
+           .text('No critical or high priority bugs requiring immediate attention!', 50, doc.y);
+      }
+
+      addPageFooter(pageNum);
+
+      // ==================== PAGE 5: DISTRIBUTIONS ====================
+      doc.addPage();
+      pageNum++;
+      addPageHeader();
+      
+      drawSectionHeader(doc, 'Bug Distribution Analysis', 50, 50, pageWidth, colors);
+      doc.y = 90;
+
+      // Severity Distribution
+      doc.fontSize(12)
+         .fillColor(colors.dark)
+         .text('Severity Distribution:', 50, doc.y, { underline: true });
+      doc.y += 20;
+
+      const severityData = data.severityDistribution || [];
+      const maxSeverity = Math.max(...severityData.map(s => s.value || 0), 1);
+      severityData.forEach((item) => {
+        const barWidth = Math.min(((item.value || 0) / maxSeverity) * 200, 200);
+        doc.rect(50, doc.y, barWidth, 15).fill(item.color || colors.gray);
+        doc.fontSize(9)
+           .fillColor(colors.dark)
+           .text(`${item.name || 'Unknown'}: ${item.value || 0}`, 260, doc.y + 3);
+        doc.y += 22;
+      });
+
+      doc.y += 20;
+      doc.fontSize(12)
+         .fillColor(colors.dark)
+         .text('Priority Distribution:', 50, doc.y, { underline: true });
+      doc.y += 20;
+
+      const priorityData = data.priorityDistribution || [];
+      const maxPriority = Math.max(...priorityData.map(p => p.value || 0), 1);
+      priorityData.forEach((item) => {
+        const barWidth = Math.min(((item.value || 0) / maxPriority) * 200, 200);
+        doc.rect(50, doc.y, barWidth, 15).fill(item.color || colors.gray);
+        doc.fontSize(9)
+           .fillColor(colors.dark)
+           .text(`${item.name || 'Unknown'}: ${item.value || 0}`, 260, doc.y + 3);
+        doc.y += 22;
+      });
+
+      // Activity Summary
+      doc.y += 30;
+      drawSectionHeader(doc, 'Activity Summary', 50, doc.y, pageWidth, colors);
+      doc.y += 40;
+
+      const activity = data.activitySummary || {};
+      const activityMetrics = [
+        ['Comments Added', activity.comments || 0],
+        ['Status Changes', activity.statusChanges || 0],
+        ['Reassignments', activity.reassignments || 0],
+        ['Commits Linked', activity.commits || 0]
+      ];
+
+      activityMetrics.forEach((metric, i) => {
+        doc.fontSize(10)
+           .fillColor(colors.dark)
+           .text(`${metric[0]}:`, 50 + (i % 2) * 250, doc.y + Math.floor(i / 2) * 25)
+           .fontSize(12)
+           .fillColor(colors.primary)
+           .text(String(metric[1]), 180 + (i % 2) * 250, doc.y + Math.floor(i / 2) * 25 - 2);
+      });
+
+      addPageFooter(pageNum);
+
+      // ==================== PAGE 6: DAILY TREND ====================
+      doc.addPage();
+      pageNum++;
+      addPageHeader();
+      
+      drawSectionHeader(doc, 'Daily Bug Activity Trend', 50, 50, pageWidth, colors);
+      doc.y = 90;
+
+      const dailyData = data.dailyActivity || [];
+      if (dailyData.length > 0) {
+        const maxVal = Math.max(...dailyData.map(d => Math.max(d.created || 0, d.resolved || 0)), 1);
+        
+        drawTableSimple(doc, 50, doc.y, pageWidth,
+          ['Date', 'Created', 'Resolved', 'Net', 'Trend'],
+          dailyData.slice(-14).map(d => [
+            String(d.date || ''),
+            String(d.created || 0),
+            String(d.resolved || 0),
+            String((d.created || 0) - (d.resolved || 0)),
+            '|'.repeat(Math.ceil(((d.created || 0) / maxVal) * 10)) + ' / ' + '|'.repeat(Math.ceil(((d.resolved || 0) / maxVal) * 10))
+          ]),
+          colors
+        );
+      }
+
+      // Week over Week (if weekly report)
+      if (data.weekOverWeek) {
+        doc.y += 30;
+        drawSectionHeader(doc, 'Week over Week Comparison', 50, doc.y, pageWidth, colors);
+        doc.y += 40;
+
+        const wow = data.weekOverWeek;
+        doc.fontSize(10).fillColor(colors.dark);
+        
+        doc.text(`Current Week - Filed: ${wow.currentWeek?.created || 0}, Resolved: ${wow.currentWeek?.resolved || 0}, Rate: ${(wow.currentWeek?.rate || 0).toFixed(1)}%`, 50, doc.y);
+        doc.y += 18;
+        doc.text(`Previous Week - Filed: ${wow.previousWeek?.created || 0}, Resolved: ${wow.previousWeek?.resolved || 0}, Rate: ${(wow.previousWeek?.rate || 0).toFixed(1)}%`, 50, doc.y);
+        doc.y += 18;
+        
+        const createdTrend = wow.createdChange >= 0 ? '▲' : '▼';
+        const resolvedTrend = wow.resolvedChange >= 0 ? '▲' : '▼';
+        
+        doc.fillColor(wow.createdChange > 0 ? colors.warning : colors.success)
+           .text(`Filed Change: ${createdTrend} ${Math.abs(wow.createdChange || 0).toFixed(1)}%`, 50, doc.y);
+        doc.y += 18;
+        doc.fillColor(wow.resolvedChange >= 0 ? colors.success : colors.danger)
+           .text(`Resolved Change: ${resolvedTrend} ${Math.abs(wow.resolvedChange || 0).toFixed(1)}%`, 50, doc.y);
+      }
+
+      addPageFooter(pageNum);
+
+      // ==================== FINAL PAGE: SUMMARY ====================
+      doc.addPage();
+      pageNum++;
+      
+      doc.rect(0, 0, doc.page.width, 120).fill(colors.primary);
+      
+      // Add logo to final page header
+      let finalTitleX = 50;
+      if (logoPath) {
+        try {
+          doc.image(logoPath, 50, 35, { width: 50, height: 50 });
+          finalTitleX = 110;
+        } catch (e) {
+          // Logo not available
+        }
+      }
+      
+      doc.fontSize(24)
+         .fillColor('white')
+         .text('Report Summary', finalTitleX, 40)
+         .fontSize(12)
+         .text(`Period: ${formatDateRange(startDate, endDate)}`, finalTitleX, 75);
+
+      doc.y = 150;
+      doc.fontSize(11)
+         .fillColor(colors.dark);
+
+      const summaryPoints = [
+        `• Total bugs filed during this period: ${data.summary?.totalBugsCreated || 0}`,
+        `• Total bugs resolved during this period: ${data.summary?.totalBugsResolved || 0}`,
+        `• Overall resolution rate: ${(data.summary?.resolutionRate || 0).toFixed(1)}%`,
+        `• Average resolution time: ${(data.summary?.avgResolutionTime || 0).toFixed(1)} days`,
+        `• Critical bugs requiring attention: ${data.summary?.criticalBugs || 0}`,
+        `• Projects covered: ${(data.projectHealth || []).length}`,
+        `• Team members with assignments: ${(data.assigneePerformance || []).length}`
+      ];
+
+      summaryPoints.forEach(point => {
+        doc.text(point, 50, doc.y);
+        doc.y += 22;
+      });
+
+      doc.y += 30;
+      doc.fontSize(10)
+         .fillColor(colors.gray)
+         .text('This report was automatically generated by the BugTracker system.', 50, doc.y)
+         .text('For questions or concerns, please contact your project administrator.', 50, doc.y + 15);
+
+      // Final footer with logo
+      doc.y = doc.page.height - 120;
+      
+      // Centered logo above confidential notice
+      if (logoPath) {
+        try {
+          const logoX = (doc.page.width - 40) / 2;
+          doc.image(logoPath, logoX, doc.y, { width: 40, height: 40 });
+          doc.y += 50;
+        } catch (e) {
+          // Logo not available
+        }
+      }
+      
+      doc.fontSize(9)
+         .fillColor(colors.danger)
+         .text('CONFIDENTIAL - FOR INTERNAL USE ONLY', 50, doc.y, { align: 'center', width: pageWidth });
+
+      // Add footer to final page
+      addPageFooter(pageNum);
+
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+// Helper functions for PDF generation
+function formatDateRange(start, end) {
+  const s = new Date(start);
+  const e = new Date(end);
+  return `${s.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} - ${e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+}
+
+function truncateText(text, maxLength) {
+  if (!text) return '';
+  return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
+}
+
+function drawSectionHeader(doc, title, x, y, width, colors) {
+  doc.rect(x, y, width, 28).fill(colors.dark);
+  doc.fontSize(14)
+     .fillColor('white')
+     .text(title, x + 10, y + 7);
+}
+
+function drawMetricBox(doc, label, value, x, y, width, color) {
+  doc.rect(x, y, width, 55).fill('#f1f5f9');
+  doc.rect(x, y, 4, 55).fill(color);
+  
+  doc.fontSize(20)
+     .fillColor(color)
+     .text(value.toString(), x + 15, y + 10, { width: width - 20 });
+  
+  doc.fontSize(9)
+     .fillColor('#64748b')
+     .text(label.toUpperCase(), x + 15, y + 38, { width: width - 20 });
+}
+
+// Simple table drawing function - no automatic page breaks (data should be pre-sliced)
+function drawTableSimple(doc, x, y, width, headers, rows, colors) {
+  const colWidths = headers.map(() => width / headers.length);
+  const rowHeight = 20;
+  const headerHeight = 25;
+
+  // Header
+  doc.rect(x, y, width, headerHeight).fill(colors.dark);
+  doc.fontSize(8).fillColor('white');
+  
+  let currentX = x;
+  headers.forEach((header, i) => {
+    doc.text(String(header || ''), currentX + 5, y + 8, { width: colWidths[i] - 10 });
+    currentX += colWidths[i];
+  });
+
+  // Rows
+  let currentY = y + headerHeight;
+  rows.forEach((row, rowIndex) => {
+    // Safety check - don't draw beyond page
+    if (currentY + rowHeight > doc.page.height - 80) {
+      return; // Skip remaining rows rather than adding pages
+    }
+
+    const bgColor = rowIndex % 2 === 0 ? '#f8fafc' : '#ffffff';
+    doc.rect(x, currentY, width, rowHeight).fill(bgColor);
+    
+    doc.fontSize(8).fillColor(colors.dark);
+    currentX = x;
+    row.forEach((cell, i) => {
+      doc.text(String(cell || '-'), currentX + 5, currentY + 6, { width: colWidths[i] - 10 });
+      currentX += colWidths[i];
+    });
+    
+    currentY += rowHeight;
+  });
+
+  doc.y = currentY + 10;
+}
+
+// Legacy function name for compatibility
+function drawTable(doc, x, y, width, headers, rows, colors) {
+  return drawTableSimple(doc, x, y, width, headers, rows, colors);
+}
 
 module.exports = router;

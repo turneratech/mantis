@@ -14,6 +14,7 @@ import UserManagement from './components/UserManagement';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ChangePassword from './components/ChangePassword';
+import ReportGenerator from './components/ReportGenerator';
 
 
 // For subdirectory deployment
@@ -169,6 +170,13 @@ function App() {
               <Route path="/change-password" element={
                 <ProtectedRoute>
                   <ChangePassword />
+                </ProtectedRoute>
+              } />
+
+              {/* Report Generator - accessible by admin and godmode */}
+              <Route path="/reports" element={
+                <ProtectedRoute adminOnly>
+                  <ReportGenerator />
                 </ProtectedRoute>
               } />
 

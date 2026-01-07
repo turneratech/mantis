@@ -56,6 +56,23 @@ function Navbar() {
     boxShadow: '0 2px 8px rgba(79, 70, 229, 0.3)',
   };
 
+  const reportButtonStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+    color: 'white',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '0.85rem',
+    fontWeight: '500',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)',
+    textDecoration: 'none',
+  };
+
   return (
     <>
       <nav className="navbar">
@@ -79,9 +96,34 @@ function Navbar() {
               Users
             </Link>
           )}
+          {hasElevatedPrivileges && (
+            <Link to="/reports" className={isActive('/reports')}>
+              Reports
+            </Link>
+          )}
         </div>
 
         <div className="navbar-user">
+          {/* Reports Button - Only for godmode/admin */}
+          {hasElevatedPrivileges && (
+            <Link 
+              to="/reports"
+              style={reportButtonStyle}
+              onMouseOver={e => {
+                e.target.style.transform = 'translateY(-2px)';
+                e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
+              }}
+              onMouseOut={e => {
+                e.target.style.transform = 'translateY(0)';
+                e.target.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
+              }}
+              title="Generate Reports"
+            >
+              <span style={{ fontSize: '1rem' }}>📊</span>
+              <span>Reports</span>
+            </Link>
+          )}
+          
           {/* Help Button - Opens Modal */}
           <button 
             style={helpButtonStyle}
@@ -107,7 +149,7 @@ function Navbar() {
             </span>
           </span>
           <Link to="/change-password" className="btn btn-secondary btn-sm" style={{ marginRight: '0.5rem' }} title="Change Password">
-            🔑
+            🔒
           </Link>
           <button className="btn btn-secondary btn-sm" onClick={logout}>
             Logout

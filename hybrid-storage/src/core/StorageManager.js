@@ -116,9 +116,9 @@ class StorageManager {
   /**
    * Get a signed URL for temporary access
    */
-  async getSignedUrl(storagePath, expiresIn = 3600, providerName = null) {
+  async getSignedUrl(storagePath, expiresIn = 3600, providerName = null, originalFileName = null) {
     const provider = this.getProvider(providerName);
-    return await provider.getSignedUrl(storagePath, expiresIn);
+    return await provider.getSignedUrl(storagePath, expiresIn, originalFileName);
   }
 
   /**

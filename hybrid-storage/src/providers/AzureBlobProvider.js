@@ -23,21 +23,40 @@ class AzureBlobProvider {
     // =====================================================
     // Method 1: Connection String (RECOMMENDED - easiest)
     // =====================================================
-    // Example: "DefaultEndpointsProtocol=https;AccountName=xxx;AccountKey=xxx;EndpointSuffix=core.windows.net"
+    // Supports TWO formats:
+    // A) Account Key based: "DefaultEndpointsProtocol=https;AccountName=xxx;AccountKey=xxx;EndpointSuffix=core.windows.net"
+    // B) SAS Token based: "BlobEndpoint=https://xxx.blob.core.windows.net/;SharedAccessSignature=sv=2024-11-04&ss=b..."
     if (config.connectionString) {
-      this.blobServiceClient = BlobServiceClient.fromConnectionString(config.connectionString);
+      // Remove surrounding quotes if present (from .env files)
+      const connStr = config.connectionString.replace(/^["']|["']$/g, '');
       
-      // Extract account info from connection string for SAS generation
-      const nameMatch = config.connectionString.match(/AccountName=([^;]+)/);
-      const keyMatch = config.connectionString.match(/AccountKey=([^;]+)/);
+      this.blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
+      
+      // Try to extract account info from connection string for SAS generation
+      const nameMatch = connStr.match(/AccountName=([^;]+)/);
+      const keyMatch = connStr.match(/AccountKey=([^;]+)/);
       
       if (nameMatch && keyMatch) {
+        // Account Key based connection string - can generate new SAS tokens
         this.accountName = nameMatch[1];
         this.accountKey = keyMatch[1];
         this.sharedKeyCredential = new StorageSharedKeyCredential(this.accountName, this.accountKey);
+        console.log('[AzureBlob] Connected via connection string (Account Key)');
+      } else {
+        // Check for SAS-based connection string
+        const sasMatch = connStr.match(/SharedAccessSignature=(.+?)(?:;|$)/);
+        const blobEndpointMatch = connStr.match(/BlobEndpoint=([^;]+)/);
+        
+        if (sasMatch && sasMatch[1]) {
+          this.useSasToken = true;
+          this.sasToken = sasMatch[1];
+          this.blobEndpoint = blobEndpointMatch ? blobEndpointMatch[1] : null;
+          console.log('[AzureBlob] Connected via connection string (SAS Token)');
+          console.log('[AzureBlob] SAS Token detected, length:', this.sasToken.length);
+        } else {
+          console.log('[AzureBlob] Connected via connection string (limited - no key or SAS for URL signing)');
+        }
       }
-      
-      console.log('[AzureBlob] Connected via connection string');
     }
     // =====================================================
     // Method 2: Blob Endpoint + SAS Token
@@ -132,14 +151,27 @@ class AzureBlobProvider {
     };
   }
 
-  async getSignedUrl(storagePath, expiresIn = 3600) {
+  async getSignedUrl(storagePath, expiresIn = 3600, originalFileName = null) {
     const fullPath = this._getFullPath(storagePath);
     const blockBlobClient = this.containerClient.getBlockBlobClient(fullPath);
     const baseUrl = blockBlobClient.url.split('?')[0]; // URL without any existing SAS
 
+    // Build content disposition header for original filename
+    let contentDisposition = '';
+    if (originalFileName) {
+      const encodedName = encodeURIComponent(originalFileName);
+      contentDisposition = `inline; filename="${encodedName}"; filename*=UTF-8''${encodedName}`;
+    }
+
     // If using SAS token auth, append the existing SAS token
     if (this.useSasToken && this.sasToken) {
-      return `${baseUrl}?${this.sasToken}`;
+      let signedUrl = `${baseUrl}?${this.sasToken}`;
+      // Add content disposition override if we have original filename
+      if (contentDisposition) {
+        signedUrl += `&rscd=${encodeURIComponent(contentDisposition)}`;
+      }
+      console.log('[AzureBlob] Generated signed URL with SAS token');
+      return signedUrl;
     }
 
     // Generate new SAS token for this specific blob
@@ -147,18 +179,27 @@ class AzureBlobProvider {
       const startsOn = new Date();
       const expiresOn = new Date(startsOn.getTime() + expiresIn * 1000);
 
-      const sasToken = generateBlobSASQueryParameters({
+      const sasOptions = {
         containerName: this.containerName,
         blobName: fullPath,
         permissions: BlobSASPermissions.parse('r'),
         startsOn,
         expiresOn,
-      }, this.sharedKeyCredential).toString();
+      };
+      
+      // Add content disposition if original filename provided
+      if (contentDisposition) {
+        sasOptions.contentDisposition = contentDisposition;
+      }
 
+      const sasToken = generateBlobSASQueryParameters(sasOptions, this.sharedKeyCredential).toString();
+
+      console.log('[AzureBlob] Generated signed URL with new SAS token');
       return `${baseUrl}?${sasToken}`;
     }
 
     // Fallback - return base URL (may not work without auth)
+    console.log('[AzureBlob] WARNING: No SAS token or credentials available, returning base URL');
     return baseUrl;
   }
 

@@ -76,8 +76,8 @@ class LocalProvider {
     return { file, mimeType, size: file.length, metadata };
   }
 
-  async getSignedUrl(storagePath, expiresIn = 3600) {
-    // For local storage, return regular URL
+  async getSignedUrl(storagePath, expiresIn = 3600, originalFileName = null) {
+    // For local storage, return regular URL (filename handled by web server)
     return this._getUrl(storagePath);
   }
 

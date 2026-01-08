@@ -195,7 +195,7 @@ function BugForm() {
   }
 
   // Check if user can delete attachments
-  const canDeleteAttachments = user?.role === 'admin' || user?.username === bugReporter;
+  const canDeleteAttachments = user?.role === 'admin' || user?.role === 'godmode' || user?.username === bugReporter;
 
   return (
     <div>

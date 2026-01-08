@@ -416,7 +416,8 @@ router.get('/:bugId', authMiddleware, async (req, res) => {
 
 /**
  * GET /api/attachments/download/:provider/*
- * Get URL to open/view attachment
+ * Get URL to open/view attachment (tries signed URL first, falls back to proxy)
+ * Query params: ?filename=original.pdf (optional, for proper Content-Disposition)
  */
 router.get('/download/:provider/*', authMiddleware, async (req, res) => {
   try {
@@ -427,13 +428,27 @@ router.get('/download/:provider/*', authMiddleware, async (req, res) => {
 
     const provider = req.params.provider;
     const storagePath = req.params[0];
+    const originalFileName = req.query.filename || null;
 
     if (!storagePath) {
       return res.status(400).json({ error: 'Path required' });
     }
 
-    // Get signed URL (valid for 1 hour)
-    const url = await storageInstance.getSignedUrl(storagePath, 3600, provider);
+    // Get signed URL (valid for 1 hour), pass original filename for Content-Disposition
+    const url = await storageInstance.getSignedUrl(storagePath, 3600, provider, originalFileName);
+    
+    // Check if URL has proper authentication (SAS token for Azure)
+    // If it's just a base URL without auth, use proxy endpoint instead
+    if (provider === 'azure' && !url.includes('?')) {
+      // No SAS token in URL, use proxy streaming instead
+      const proxyUrl = `/api/attachments/stream/${provider}/${storagePath}`;
+      return res.json({ 
+        url: proxyUrl, 
+        expiresIn: null,
+        openInBrowser: true,
+        isProxy: true
+      });
+    }
     
     res.json({ 
       url, 
@@ -443,6 +458,55 @@ router.get('/download/:provider/*', authMiddleware, async (req, res) => {
     
   } catch (error) {
     console.error('[Attachments] Download error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/attachments/stream/:provider/*
+ * Stream file directly through server (for private storage without public URLs)
+ */
+router.get('/stream/:provider/*', authMiddleware, async (req, res) => {
+  try {
+    const storageInstance = initStorage();
+    if (!storageInstance) {
+      return res.status(500).json({ error: 'Storage not available' });
+    }
+
+    const provider = req.params.provider;
+    const storagePath = req.params[0];
+    // Get original filename from query param, fallback to path
+    const originalFileName = req.query.filename || storagePath.split('/').pop();
+
+    if (!storagePath) {
+      return res.status(400).json({ error: 'Path required' });
+    }
+
+    console.log(`[Attachments] Streaming file: ${storagePath} from ${provider}`);
+
+    // Download file from storage
+    const result = await storageInstance.download(storagePath, provider);
+    
+    if (!result || !result.file) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
+    // Encode filename for Content-Disposition header (handle special characters)
+    const encodedFileName = encodeURIComponent(originalFileName).replace(/['()]/g, escape);
+    
+    // Set appropriate headers
+    res.set({
+      'Content-Type': result.mimeType || 'application/octet-stream',
+      'Content-Length': result.size || result.file.length,
+      'Content-Disposition': `inline; filename="${encodedFileName}"; filename*=UTF-8''${encodedFileName}`,
+      'Cache-Control': 'private, max-age=3600'
+    });
+
+    // Stream the file
+    res.send(result.file);
+    
+  } catch (error) {
+    console.error('[Attachments] Stream error:', error);
     res.status(500).json({ error: error.message });
   }
 });

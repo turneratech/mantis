@@ -1,36 +1,24 @@
-/* Report Generator Styles */
+/* Report Generator - Minimal Styles (extends existing app styles) */
 
 .report-generator {
   padding-bottom: 3rem;
 }
 
-.report-config {
-  margin-bottom: 2rem;
-}
-
-.config-grid {
+/* Config Grid - Two columns for Report Type and Date Range */
+.report-config-grid {
   display: grid;
-  gap: 1.5rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 1rem;
 }
 
-.config-section {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.config-section > label {
-  font-weight: 600;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-}
-
-.report-type-selector {
+/* Report Type Buttons */
+.report-type-buttons {
   display: flex;
   gap: 1rem;
 }
 
-.type-btn {
+.report-type-btn {
   flex: 1;
   padding: 1rem 1.5rem;
   background: var(--bg-input);
@@ -43,75 +31,70 @@
   transition: all 0.2s;
 }
 
-.type-btn:hover {
+.report-type-btn:hover {
   background: var(--bg-tertiary);
   border-color: var(--primary);
 }
 
-.type-btn.active {
+.report-type-btn.active {
   background: var(--primary);
   border-color: var(--primary);
   color: white;
 }
 
-.date-range {
+/* Date Range Inputs */
+.date-range-inputs {
   display: flex;
-  align-items: center;
-  gap: 1rem;
+  gap: 1.5rem;
+  align-items: flex-end;
 }
 
-.date-range input {
-  padding: 0.75rem 1rem;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text-primary);
-  font-size: 0.95rem;
-}
-
-.date-range span {
-  color: var(--text-secondary);
-}
-
-.project-selector {
+.date-field {
+  flex: 1;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: var(--bg-input);
-  border-radius: 8px;
-  max-height: 150px;
-  overflow-y: auto;
-}
-
-.project-checkbox {
-  display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: var(--bg-tertiary);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
 }
 
-.project-checkbox:hover {
-  background: var(--bg-card);
-}
-
-.project-checkbox input {
-  accent-color: var(--primary);
-}
-
-.project-checkbox .project-name {
+.date-label {
+  font-size: 0.8rem;
   color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.date-field .form-control {
+  width: 100%;
+}
+
+/* Project Selection */
+.project-count-badge {
+  margin-left: 0.75rem;
+  padding: 0.25rem 0.75rem;
+  background: var(--primary);
+  color: white;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.project-selection-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.project-selection-actions .btn {
+  padding: 0.375rem 0.75rem;
   font-size: 0.85rem;
 }
 
-.config-actions {
+/* Action Buttons */
+.report-actions {
   display: flex;
   gap: 1rem;
-  margin-top: 1.5rem;
+  margin-top: 2rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--border);
 }
@@ -157,6 +140,7 @@
 .preview-header h2 {
   font-size: 1.5rem;
   color: var(--text-primary);
+  margin: 0;
 }
 
 .preview-badge {
@@ -181,14 +165,14 @@
 
 .summary-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(6, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
 
 .summary-metric {
   text-align: center;
-  padding: 1.25rem;
+  padding: 1.25rem 1rem;
   background: var(--bg-input);
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -204,7 +188,7 @@
 
 .summary-metric .metric-label {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
   margin-top: 0.25rem;
   text-transform: uppercase;
@@ -219,11 +203,11 @@
   padding: 1rem;
   background: var(--bg-input);
   border-radius: 8px;
-  font-size: 0.95rem;
 }
 
 .summary-text p {
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.5rem 0;
+  color: var(--text-secondary);
 }
 
 .summary-text p:last-child {
@@ -246,7 +230,7 @@
   margin-bottom: 1rem;
 }
 
-/* Report Tables */
+/* Tables */
 .report-table {
   font-size: 0.9rem;
 }
@@ -255,38 +239,28 @@
   background: var(--bg-tertiary);
   font-weight: 600;
   text-transform: uppercase;
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   letter-spacing: 0.5px;
 }
 
-.report-table td {
-  vertical-align: middle;
-}
-
-.rate-badge {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  font-weight: 600;
+.project-name-small {
+  margin-left: 0.5rem;
+  color: var(--text-secondary);
   font-size: 0.85rem;
 }
 
-.rate-badge.good { background: rgba(16, 185, 129, 0.2); color: var(--success); }
-.rate-badge.medium { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
-.rate-badge.low { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
-
-.performance-bar {
-  width: 100px;
-  height: 8px;
-  background: var(--bg-input);
-  border-radius: 4px;
+.bug-title {
+  max-width: 200px;
   overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.performance-fill {
-  height: 100%;
-  border-radius: 4px;
-  transition: width 0.3s;
+.more-items {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-secondary);
+  font-style: italic;
 }
 
 .health-score {
@@ -309,26 +283,6 @@
 .status-indicator.healthy { color: var(--success); }
 .status-indicator.warning { color: var(--warning); }
 .status-indicator.critical { color: var(--danger); }
-
-.project-name-small {
-  margin-left: 0.5rem;
-  color: var(--text-secondary);
-  font-size: 0.85rem;
-}
-
-.bug-title {
-  max-width: 250px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.more-items {
-  text-align: center;
-  padding: 1rem;
-  color: var(--text-secondary);
-  font-style: italic;
-}
 
 /* Week over Week */
 .wow-comparison {
@@ -374,13 +328,6 @@
 .wow-change.down { background: rgba(16, 185, 129, 0.2); color: var(--success); }
 .wow-change.up.good { background: rgba(16, 185, 129, 0.2); color: var(--success); }
 
-.wow-prev {
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
 /* Activity Summary */
 .activity-summary {
   display: grid;
@@ -415,11 +362,11 @@
   margin-top: 0.25rem;
 }
 
-/* Download Section */
+/* Download */
 .download-section {
   margin-top: 2rem;
   padding: 2rem;
-  background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-card) 100%);
+  background: var(--bg-tertiary);
   border-radius: 12px;
   border: 2px dashed var(--primary);
   text-align: center;
@@ -432,14 +379,29 @@
 }
 
 /* Responsive */
+@media (max-width: 1024px) {
+  .summary-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-  .report-type-selector {
+  .report-config-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .report-type-buttons {
     flex-direction: column;
   }
   
-  .date-range {
+  .date-range-inputs {
     flex-direction: column;
-    align-items: stretch;
+    gap: 1rem;
+  }
+  
+  .summary-metrics {
+    grid-template-columns: repeat(2, 1fr);
   }
   
   .charts-grid.two-col {
@@ -454,7 +416,11 @@
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .config-actions {
+  .report-actions {
     flex-direction: column;
+  }
+  
+  .btn-lg, .btn-xl {
+    width: 100%;
   }
 }

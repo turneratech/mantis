@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import MultiSelect from './MultiSelect';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, ComposedChart
+  PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
+import './ReportGenerator.css';
 
 function ReportGenerator() {
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [reportType, setReportType] = useState('weekly');
   const [reportData, setReportData] = useState(null);
+  const [error, setError] = useState('');
   const [dateRange, setDateRange] = useState({
     startDate: getDefaultStartDate('weekly'),
     endDate: new Date().toISOString().split('T')[0]
@@ -42,15 +45,23 @@ function ReportGenerator() {
   const fetchProjects = async () => {
     try {
       const res = await axios.get('/api/projects');
-      setProjects(res.data);
-      setSelectedProjects(res.data.map(p => p.projectKey || p.key));
-    } catch (error) {
-      console.error('Error fetching projects:', error);
+      setProjects(res.data || []);
+      setSelectedProjects((res.data || []).map(p => p.projectKey || p.key));
+    } catch (err) {
+      console.error('Error fetching projects:', err);
+      setError('Failed to load projects');
     }
   };
 
   const fetchReportData = async () => {
+    if (selectedProjects.length === 0) {
+      setError('Please select at least one project');
+      return;
+    }
+    
     setLoading(true);
+    setError('');
+    
     try {
       const res = await axios.post('/api/analytics/report-data', {
         reportType,
@@ -58,11 +69,18 @@ function ReportGenerator() {
         endDate: dateRange.endDate,
         projects: selectedProjects
       });
-      setReportData(res.data);
-      setPreviewMode(true);
-    } catch (error) {
-      console.error('Error fetching report data:', error);
-      alert('Failed to generate report preview. Please try again.');
+      
+      console.log('Report data received:', res.data);
+      
+      if (res.data) {
+        setReportData(res.data);
+        setPreviewMode(true);
+      } else {
+        setError('No data received from server');
+      }
+    } catch (err) {
+      console.error('Error fetching report data:', err);
+      setError(err.response?.data?.error || 'Failed to generate report preview');
     } finally {
       setLoading(false);
     }
@@ -81,7 +99,6 @@ function ReportGenerator() {
         responseType: 'blob'
       });
 
-      // Create download link
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -91,22 +108,21 @@ function ReportGenerator() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF report. Please try again.');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      setError('Failed to generate PDF report');
     } finally {
       setGenerating(false);
     }
   };
 
   const COLORS = {
-    status: ['#3b82f6', '#8b5cf6', '#10b981', '#6b7280'],
     severity: ['#dc2626', '#f97316', '#eab308', '#22c55e'],
-    priority: ['#dc2626', '#f97316', '#eab308', '#22c55e'],
-    chart: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
+    priority: ['#dc2626', '#f97316', '#eab308', '#22c55e']
   };
 
   const formatDate = (dateStr) => {
+    if (!dateStr) return '';
     return new Date(dateStr).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -121,13 +137,39 @@ function ReportGenerator() {
     return 0;
   };
 
-  const toggleProject = (projectKey) => {
-    if (selectedProjects.includes(projectKey)) {
-      setSelectedProjects(selectedProjects.filter(p => p !== projectKey));
-    } else {
-      setSelectedProjects([...selectedProjects, projectKey]);
-    }
+  // Build options for MultiSelect
+  const projectOptions = projects.map(p => {
+    const key = p.projectKey || p.key;
+    return `${key} - ${p.name}`;
+  });
+
+  const selectedDisplay = selectedProjects.map(key => {
+    const project = projects.find(p => (p.projectKey || p.key) === key);
+    return project ? `${key} - ${project.name}` : key;
+  });
+
+  const handleProjectChange = (newSelected) => {
+    const keys = newSelected.map(item => item.split(' - ')[0]);
+    setSelectedProjects(keys);
   };
+
+  const selectAllProjects = () => {
+    setSelectedProjects(projects.map(p => p.projectKey || p.key));
+  };
+
+  const clearAllProjects = () => {
+    setSelectedProjects([]);
+  };
+
+  // Safe data accessors
+  const summary = reportData?.summary || {};
+  const severityDist = Array.isArray(reportData?.severityDistribution) ? reportData.severityDistribution : [];
+  const priorityDist = Array.isArray(reportData?.priorityDistribution) ? reportData.priorityDistribution : [];
+  const dailyActivity = Array.isArray(reportData?.dailyActivity) ? reportData.dailyActivity : [];
+  const projectHealth = Array.isArray(reportData?.projectHealth) ? reportData.projectHealth : [];
+  const criticalBugs = Array.isArray(reportData?.criticalBugs) ? reportData.criticalBugs : [];
+  const activitySummary = reportData?.activitySummary || {};
+  const weekOverWeek = reportData?.weekOverWeek || null;
 
   return (
     <div className="report-generator">
@@ -136,22 +178,32 @@ function ReportGenerator() {
         <p>Generate comprehensive weekly or monthly reports for project management</p>
       </div>
 
-      {/* Configuration Panel */}
-      <div className="card report-config">
+      {/* Error Display */}
+      {error && (
+        <div className="error-message" style={{ marginBottom: '1rem' }}>
+          {error}
+        </div>
+      )}
+
+      {/* Configuration Card */}
+      <div className="card">
         <h3 className="card-title">Report Configuration</h3>
         
-        <div className="config-grid">
-          <div className="config-section">
-            <label>Report Type</label>
-            <div className="report-type-selector">
+        <div className="report-config-grid">
+          {/* Report Type */}
+          <div className="form-group">
+            <label className="form-label">Report Type</label>
+            <div className="report-type-buttons">
               <button 
-                className={`type-btn ${reportType === 'weekly' ? 'active' : ''}`}
+                type="button"
+                className={`report-type-btn ${reportType === 'weekly' ? 'active' : ''}`}
                 onClick={() => setReportType('weekly')}
               >
                 📅 Weekly Report
               </button>
               <button 
-                className={`type-btn ${reportType === 'monthly' ? 'active' : ''}`}
+                type="button"
+                className={`report-type-btn ${reportType === 'monthly' ? 'active' : ''}`}
                 onClick={() => setReportType('monthly')}
               >
                 🗓️ Monthly Report
@@ -159,48 +211,68 @@ function ReportGenerator() {
             </div>
           </div>
 
-          <div className="config-section">
-            <label>Date Range</label>
-            <div className="date-range">
-              <input 
-                type="date" 
-                value={dateRange.startDate}
-                onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})}
-              />
-              <span>to</span>
-              <input 
-                type="date" 
-                value={dateRange.endDate}
-                onChange={(e) => setDateRange({...dateRange, endDate: e.target.value})}
-              />
-            </div>
-          </div>
-
-          <div className="config-section">
-            <label>Projects to Include</label>
-            <div className="project-selector">
-              {projects.map(project => (
-                <label key={project.id} className="project-checkbox">
-                  <input 
-                    type="checkbox"
-                    checked={selectedProjects.includes(project.projectKey || project.key)}
-                    onChange={() => toggleProject(project.projectKey || project.key)}
-                  />
-                  <span className="project-badge">{project.projectKey || project.key}</span>
-                  <span className="project-name">{project.name}</span>
-                </label>
-              ))}
+          {/* Date Range */}
+          <div className="form-group">
+            <label className="form-label">Date Range</label>
+            <div className="date-range-inputs">
+              <div className="date-field">
+                <span className="date-label">From</span>
+                <input 
+                  type="date" 
+                  className="form-control"
+                  value={dateRange.startDate}
+                  onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})}
+                />
+              </div>
+              <div className="date-field">
+                <span className="date-label">To</span>
+                <input 
+                  type="date" 
+                  className="form-control"
+                  value={dateRange.endDate}
+                  onChange={(e) => setDateRange({...dateRange, endDate: e.target.value})}
+                />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="config-actions">
+        {/* Projects Selection */}
+        <div className="form-group" style={{ marginTop: '1.5rem' }}>
+          <label className="form-label">
+            Projects to Include
+            <span className="project-count-badge">
+              {selectedProjects.length === projects.length 
+                ? 'All Selected' 
+                : `${selectedProjects.length} of ${projects.length}`}
+            </span>
+          </label>
+          
+          <div className="project-selection-actions">
+            <button type="button" className="btn btn-sm btn-secondary" onClick={selectAllProjects}>
+              ✓ Select All
+            </button>
+            <button type="button" className="btn btn-sm btn-secondary" onClick={clearAllProjects}>
+              ✕ Clear All
+            </button>
+          </div>
+
+          <MultiSelect
+            options={projectOptions}
+            selected={selectedDisplay}
+            onChange={handleProjectChange}
+            placeholder="Search and select projects..."
+          />
+        </div>
+
+        {/* Action Buttons */}
+        <div className="report-actions">
           <button 
             className="btn btn-primary btn-lg"
             onClick={fetchReportData}
             disabled={loading || selectedProjects.length === 0}
           >
-            {loading ? '⏳ Generating Preview...' : '👁️ Generate Preview'}
+            {loading ? '⏳ Generating...' : '👁️ Generate Preview'}
           </button>
           {reportData && (
             <button 
@@ -208,7 +280,7 @@ function ReportGenerator() {
               onClick={generatePDF}
               disabled={generating}
             >
-              {generating ? '⏳ Generating PDF...' : '📥 Download PDF Report'}
+              {generating ? '⏳ Creating PDF...' : '📥 Download PDF Report'}
             </button>
           )}
         </div>
@@ -227,341 +299,267 @@ function ReportGenerator() {
           {/* Executive Summary */}
           <div className="card summary-card">
             <h3>📌 Executive Summary</h3>
-            <div className="summary-content">
-              <div className="summary-metrics">
-                <div className="summary-metric">
-                  <span className="metric-value">{safeNum(reportData.summary?.totalBugsCreated)}</span>
-                  <span className="metric-label">Bugs Filed</span>
-                </div>
-                <div className="summary-metric success">
-                  <span className="metric-value">{safeNum(reportData.summary?.totalBugsResolved)}</span>
-                  <span className="metric-label">Bugs Resolved</span>
-                </div>
-                <div className="summary-metric warning">
-                  <span className="metric-value">{safeNum(reportData.summary?.netChange)}</span>
-                  <span className="metric-label">Net Change</span>
-                </div>
-                <div className="summary-metric">
-                  <span className="metric-value">{safeNum(reportData.summary?.avgResolutionTime)}d</span>
-                  <span className="metric-label">Avg Resolution</span>
-                </div>
-                <div className="summary-metric critical">
-                  <span className="metric-value">{safeNum(reportData.summary?.criticalBugs)}</span>
-                  <span className="metric-label">Critical Bugs</span>
-                </div>
-                <div className="summary-metric">
-                  <span className="metric-value">
-                    {reportData.summary?.resolutionRate ? `${reportData.summary.resolutionRate.toFixed(1)}%` : '0%'}
-                  </span>
-                  <span className="metric-label">Resolution Rate</span>
-                </div>
+            <div className="summary-metrics">
+              <div className="summary-metric">
+                <span className="metric-value">{safeNum(summary.totalBugsCreated)}</span>
+                <span className="metric-label">Bugs Filed</span>
               </div>
+              <div className="summary-metric success">
+                <span className="metric-value">{safeNum(summary.totalBugsResolved)}</span>
+                <span className="metric-label">Bugs Resolved</span>
+              </div>
+              <div className="summary-metric warning">
+                <span className="metric-value">{safeNum(summary.netChange)}</span>
+                <span className="metric-label">Net Change</span>
+              </div>
+              <div className="summary-metric">
+                <span className="metric-value">{safeNum(summary.avgResolutionTime)}d</span>
+                <span className="metric-label">Avg Resolution</span>
+              </div>
+              <div className="summary-metric critical">
+                <span className="metric-value">{safeNum(summary.criticalBugs)}</span>
+                <span className="metric-label">Critical Bugs</span>
+              </div>
+              <div className="summary-metric">
+                <span className="metric-value">
+                  {typeof summary.resolutionRate === 'number' ? summary.resolutionRate.toFixed(1) : '0'}%
+                </span>
+                <span className="metric-label">Resolution Rate</span>
+              </div>
+            </div>
+            {Array.isArray(summary.highlights) && summary.highlights.length > 0 && (
               <div className="summary-text">
-                <p><strong>Period:</strong> {formatDate(dateRange.startDate)} to {formatDate(dateRange.endDate)}</p>
-                <p><strong>Projects Covered:</strong> {selectedProjects.join(', ')}</p>
-                <p><strong>Highlights:</strong> {reportData.summary?.highlights || 'No significant highlights for this period.'}</p>
+                {summary.highlights.map((h, i) => <p key={i}>{h}</p>)}
               </div>
-            </div>
-          </div>
-
-          {/* ARB Rate Trend */}
-          <div className="card chart-card">
-            <h3>📈 Bug Resolution Rate (ARB) Trend</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={reportData.arbTrend || []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" stroke="#10b981" tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
-                <Legend />
-                <Bar yAxisId="left" dataKey="created" fill="#3b82f6" name="Bugs Created" />
-                <Bar yAxisId="left" dataKey="resolved" fill="#10b981" name="Bugs Resolved" />
-                <Line yAxisId="right" type="monotone" dataKey="resolutionRate" stroke="#f59e0b" strokeWidth={2} name="Resolution Rate %" dot={{ fill: '#f59e0b' }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Bug Filed vs Resolved per Project */}
-          <div className="card chart-card">
-            <h3>📊 Bug Filed vs Resolved per Project</h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={reportData.projectComparison || []} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis type="number" stroke="#94a3b8" />
-                <YAxis type="category" dataKey="projectName" stroke="#94a3b8" width={120} tick={{ fontSize: 12 }} />
-                <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
-                <Legend />
-                <Bar dataKey="created" fill="#3b82f6" name="Bugs Filed" />
-                <Bar dataKey="resolved" fill="#10b981" name="Bugs Resolved" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Assignee Performance */}
-          <div className="card">
-            <h3>👥 Assignee Bug Resolution Status</h3>
-            <table className="bug-table report-table">
-              <thead>
-                <tr>
-                  <th>Assignee</th>
-                  <th>Assigned</th>
-                  <th>Resolved</th>
-                  <th>Open</th>
-                  <th>In Progress</th>
-                  <th>Resolution Rate</th>
-                  <th>Avg Resolution Time</th>
-                  <th>Performance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(reportData.assigneePerformance || []).map((user, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{user.username}</strong></td>
-                    <td>{safeNum(user.assigned)}</td>
-                    <td className="text-success">{safeNum(user.resolved)}</td>
-                    <td className="text-warning">{safeNum(user.open)}</td>
-                    <td>{safeNum(user.inProgress)}</td>
-                    <td>
-                      <span className={`rate-badge ${user.resolutionRate >= 70 ? 'good' : user.resolutionRate >= 40 ? 'medium' : 'low'}`}>
-                        {user.resolutionRate?.toFixed(1) || 0}%
-                      </span>
-                    </td>
-                    <td>{user.avgResolutionTime ? `${user.avgResolutionTime.toFixed(1)}d` : '-'}</td>
-                    <td>
-                      <div className="performance-bar">
-                        <div 
-                          className="performance-fill" 
-                          style={{ 
-                            width: `${Math.min(user.resolutionRate || 0, 100)}%`,
-                            backgroundColor: user.resolutionRate >= 70 ? '#10b981' : user.resolutionRate >= 40 ? '#f59e0b' : '#ef4444'
-                          }}
-                        ></div>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Severity and Priority Distribution */}
-          <div className="charts-grid two-col">
-            <div className="card chart-card">
-              <h3>🔴 Severity Distribution</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={reportData.severityDistribution || []}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    dataKey="value"
-                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={{ stroke: '#94a3b8' }}
-                  >
-                    {(reportData.severityDistribution || []).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color || COLORS.severity[index % COLORS.severity.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="card chart-card">
-              <h3>⚡ Priority Distribution</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={reportData.priorityDistribution || []}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    dataKey="value"
-                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                    labelLine={{ stroke: '#94a3b8' }}
-                  >
-                    {(reportData.priorityDistribution || []).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color || COLORS.priority[index % COLORS.priority.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Daily Activity */}
-          <div className="card chart-card">
-            <h3>📆 Daily Bug Activity</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <AreaChart data={reportData.dailyActivity || []}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: 10 }} tickFormatter={(v) => v ? v.slice(5) : ''} />
-                <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} />
-                <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
-                <Legend />
-                <Area type="monotone" dataKey="created" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Created" />
-                <Area type="monotone" dataKey="resolved" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Resolved" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Project Health Summary */}
-          <div className="card">
-            <h3>🏥 Project Health Summary</h3>
-            <table className="bug-table report-table">
-              <thead>
-                <tr>
-                  <th>Project</th>
-                  <th>Total Bugs</th>
-                  <th>Open</th>
-                  <th>In Progress</th>
-                  <th>Resolved</th>
-                  <th>Critical</th>
-                  <th>Health Score</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(reportData.projectHealth || []).map((project, idx) => (
-                  <tr key={idx}>
-                    <td>
-                      <span className="project-badge">{project.projectKey}</span>
-                      <span className="project-name-small">{project.projectName}</span>
-                    </td>
-                    <td>{safeNum(project.total)}</td>
-                    <td className="text-warning">{safeNum(project.open)}</td>
-                    <td>{safeNum(project.inProgress)}</td>
-                    <td className="text-success">{safeNum(project.resolved)}</td>
-                    <td className="text-danger">{safeNum(project.critical)}</td>
-                    <td>
-                      <span className={`health-score ${project.healthScore >= 70 ? 'good' : project.healthScore >= 40 ? 'medium' : 'low'}`}>
-                        {project.healthScore?.toFixed(0) || 0}/100
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`status-indicator ${project.healthScore >= 70 ? 'healthy' : project.healthScore >= 40 ? 'warning' : 'critical'}`}>
-                        {project.healthScore >= 70 ? '✅ Healthy' : project.healthScore >= 40 ? '⚠️ Needs Attention' : '🔴 Critical'}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Critical & High Priority Bugs */}
-          <div className="card">
-            <h3>🚨 Critical & High Priority Bugs (Requires Attention)</h3>
-            <table className="bug-table report-table">
-              <thead>
-                <tr>
-                  <th>Bug ID</th>
-                  <th>Title</th>
-                  <th>Project</th>
-                  <th>Severity</th>
-                  <th>Priority</th>
-                  <th>Assignee</th>
-                  <th>Age (Days)</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(reportData.criticalBugs || []).slice(0, 15).map((bug, idx) => (
-                  <tr key={idx}>
-                    <td><span className="bug-id">{bug.bugId}</span></td>
-                    <td className="bug-title">{bug.title}</td>
-                    <td><span className="project-badge">{bug.projectKey}</span></td>
-                    <td><span className={`badge badge-${bug.severity?.toLowerCase()}`}>{bug.severity}</span></td>
-                    <td><span className={`badge badge-${bug.priority?.toLowerCase()}`}>{bug.priority}</span></td>
-                    <td>{bug.assignee || '-'}</td>
-                    <td className={bug.age > 7 ? 'text-danger' : bug.age > 3 ? 'text-warning' : ''}>{bug.age || 0}</td>
-                    <td><span className={`badge badge-${bug.status?.toLowerCase().replace(' ', '-')}`}>{bug.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {(reportData.criticalBugs || []).length > 15 && (
-              <p className="more-items">... and {reportData.criticalBugs.length - 15} more critical bugs</p>
             )}
           </div>
 
-          {/* Week over Week Comparison (for weekly reports) */}
-          {reportType === 'weekly' && reportData.weekOverWeek && (
+          {/* Charts - Only render if we have data */}
+          {(severityDist.length > 0 || priorityDist.length > 0) && (
+            <div className="charts-grid two-col">
+              {severityDist.length > 0 && (
+                <div className="card chart-card">
+                  <h3>🎯 Severity Distribution</h3>
+                  <div style={{ width: '100%', height: 250 }}>
+                    <ResponsiveContainer>
+                      <PieChart>
+                        <Pie 
+                          data={severityDist} 
+                          cx="50%" 
+                          cy="50%" 
+                          innerRadius={50} 
+                          outerRadius={80} 
+                          dataKey="value" 
+                          label={({ name, value }) => `${name}: ${value}`}
+                          labelLine={{ stroke: '#94a3b8' }}
+                        >
+                          {severityDist.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color || COLORS.severity[index % COLORS.severity.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+              
+              {priorityDist.length > 0 && (
+                <div className="card chart-card">
+                  <h3>⚡ Priority Distribution</h3>
+                  <div style={{ width: '100%', height: 250 }}>
+                    <ResponsiveContainer>
+                      <PieChart>
+                        <Pie 
+                          data={priorityDist} 
+                          cx="50%" 
+                          cy="50%" 
+                          innerRadius={50} 
+                          outerRadius={80} 
+                          dataKey="value" 
+                          label={({ name, value }) => `${name}: ${value}`}
+                          labelLine={{ stroke: '#94a3b8' }}
+                        >
+                          {priorityDist.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color || COLORS.priority[index % COLORS.priority.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Daily Activity Chart */}
+          {dailyActivity.length > 0 && (
+            <div className="card chart-card">
+              <h3>📆 Daily Bug Activity</h3>
+              <div style={{ width: '100%', height: 250 }}>
+                <ResponsiveContainer>
+                  <AreaChart data={dailyActivity}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                    <XAxis dataKey="date" stroke="#94a3b8" tick={{ fontSize: 10 }} tickFormatter={(v) => v ? v.slice(5) : ''} />
+                    <YAxis stroke="#94a3b8" tick={{ fontSize: 11 }} />
+                    <Tooltip contentStyle={{ background: '#1e293b', border: '1px solid #334155' }} />
+                    <Legend />
+                    <Area type="monotone" dataKey="created" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.3} name="Created" />
+                    <Area type="monotone" dataKey="resolved" stroke="#10b981" fill="#10b981" fillOpacity={0.3} name="Resolved" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Project Health Summary */}
+          {projectHealth.length > 0 && (
+            <div className="card">
+              <h3>🏥 Project Health Summary</h3>
+              <table className="bug-table report-table">
+                <thead>
+                  <tr>
+                    <th>Project</th>
+                    <th>Total</th>
+                    <th>Open</th>
+                    <th>In Progress</th>
+                    <th>Resolved</th>
+                    <th>Critical</th>
+                    <th>Health</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projectHealth.map((project, idx) => (
+                    <tr key={idx}>
+                      <td>
+                        <span className="project-badge">{project.projectKey || '-'}</span>
+                        <span className="project-name-small">{project.projectName || ''}</span>
+                      </td>
+                      <td>{safeNum(project.total)}</td>
+                      <td className="text-warning">{safeNum(project.open)}</td>
+                      <td>{safeNum(project.inProgress)}</td>
+                      <td className="text-success">{safeNum(project.resolved)}</td>
+                      <td className="text-danger">{safeNum(project.critical)}</td>
+                      <td>
+                        <span className={`health-score ${(project.healthScore || 0) >= 70 ? 'good' : (project.healthScore || 0) >= 40 ? 'medium' : 'low'}`}>
+                          {typeof project.healthScore === 'number' ? project.healthScore.toFixed(0) : '0'}/100
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`status-indicator ${(project.healthScore || 0) >= 70 ? 'healthy' : (project.healthScore || 0) >= 40 ? 'warning' : 'critical'}`}>
+                          {(project.healthScore || 0) >= 70 ? '✅ Healthy' : (project.healthScore || 0) >= 40 ? '⚠️ Attention' : '🔴 Critical'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Critical Bugs */}
+          {criticalBugs.length > 0 && (
+            <div className="card">
+              <h3>🚨 Critical & High Priority Bugs</h3>
+              <table className="bug-table report-table">
+                <thead>
+                  <tr>
+                    <th>Bug ID</th>
+                    <th>Title</th>
+                    <th>Project</th>
+                    <th>Severity</th>
+                    <th>Priority</th>
+                    <th>Assignee</th>
+                    <th>Age</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {criticalBugs.slice(0, 15).map((bug, idx) => (
+                    <tr key={idx}>
+                      <td><span className="bug-id">{bug.bugId || '-'}</span></td>
+                      <td className="bug-title">{bug.title || '-'}</td>
+                      <td><span className="project-badge">{bug.projectKey || '-'}</span></td>
+                      <td><span className={`badge badge-${(bug.severity || '').toLowerCase()}`}>{bug.severity || '-'}</span></td>
+                      <td><span className={`badge badge-${(bug.priority || '').toLowerCase()}`}>{bug.priority || '-'}</span></td>
+                      <td>{bug.assignee || '-'}</td>
+                      <td className={safeNum(bug.age) > 7 ? 'text-danger' : safeNum(bug.age) > 3 ? 'text-warning' : ''}>{safeNum(bug.age)}d</td>
+                      <td><span className={`badge badge-${(bug.status || '').toLowerCase().replace(' ', '-')}`}>{bug.status || '-'}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {criticalBugs.length > 15 && (
+                <p className="more-items">... and {criticalBugs.length - 15} more</p>
+              )}
+            </div>
+          )}
+
+          {/* Week over Week - only for weekly reports */}
+          {reportType === 'weekly' && weekOverWeek && (
             <div className="card">
               <h3>📊 Week over Week Comparison</h3>
               <div className="wow-comparison">
                 <div className="wow-metric">
                   <span className="wow-label">Bugs Filed</span>
-                  <span className="wow-current">{safeNum(reportData.weekOverWeek.currentWeek?.created)}</span>
-                  <span className={`wow-change ${reportData.weekOverWeek.createdChange >= 0 ? 'up' : 'down'}`}>
-                    {reportData.weekOverWeek.createdChange >= 0 ? '▲' : '▼'} {Math.abs(reportData.weekOverWeek.createdChange || 0).toFixed(1)}%
+                  <span className="wow-current">{safeNum(weekOverWeek.currentWeek?.created)}</span>
+                  <span className={`wow-change ${(weekOverWeek.createdChange || 0) >= 0 ? 'up' : 'down'}`}>
+                    {(weekOverWeek.createdChange || 0) >= 0 ? '▲' : '▼'} {Math.abs(weekOverWeek.createdChange || 0).toFixed(1)}%
                   </span>
-                  <span className="wow-prev">vs {safeNum(reportData.weekOverWeek.previousWeek?.created)} last week</span>
                 </div>
                 <div className="wow-metric">
                   <span className="wow-label">Bugs Resolved</span>
-                  <span className="wow-current">{safeNum(reportData.weekOverWeek.currentWeek?.resolved)}</span>
-                  <span className={`wow-change ${reportData.weekOverWeek.resolvedChange >= 0 ? 'up good' : 'down'}`}>
-                    {reportData.weekOverWeek.resolvedChange >= 0 ? '▲' : '▼'} {Math.abs(reportData.weekOverWeek.resolvedChange || 0).toFixed(1)}%
+                  <span className="wow-current">{safeNum(weekOverWeek.currentWeek?.resolved)}</span>
+                  <span className={`wow-change ${(weekOverWeek.resolvedChange || 0) >= 0 ? 'up good' : 'down'}`}>
+                    {(weekOverWeek.resolvedChange || 0) >= 0 ? '▲' : '▼'} {Math.abs(weekOverWeek.resolvedChange || 0).toFixed(1)}%
                   </span>
-                  <span className="wow-prev">vs {safeNum(reportData.weekOverWeek.previousWeek?.resolved)} last week</span>
                 </div>
                 <div className="wow-metric">
                   <span className="wow-label">Resolution Rate</span>
-                  <span className="wow-current">{reportData.weekOverWeek.currentWeek?.rate?.toFixed(1) || 0}%</span>
-                  <span className={`wow-change ${reportData.weekOverWeek.rateChange >= 0 ? 'up good' : 'down'}`}>
-                    {reportData.weekOverWeek.rateChange >= 0 ? '▲' : '▼'} {Math.abs(reportData.weekOverWeek.rateChange || 0).toFixed(1)}%
+                  <span className="wow-current">{typeof weekOverWeek.currentWeek?.rate === 'number' ? weekOverWeek.currentWeek.rate.toFixed(1) : '0'}%</span>
+                  <span className={`wow-change ${(weekOverWeek.rateChange || 0) >= 0 ? 'up good' : 'down'}`}>
+                    {(weekOverWeek.rateChange || 0) >= 0 ? '▲' : '▼'} {Math.abs(weekOverWeek.rateChange || 0).toFixed(1)}%
                   </span>
-                  <span className="wow-prev">vs {reportData.weekOverWeek.previousWeek?.rate?.toFixed(1) || 0}% last week</span>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Recent Activity Summary */}
+          {/* Activity Summary */}
           <div className="card">
-            <h3>📝 Recent Activity Summary</h3>
+            <h3>📝 Activity Summary</h3>
             <div className="activity-summary">
               <div className="activity-stat">
                 <span className="activity-icon">📝</span>
-                <span className="activity-count">{safeNum(reportData.activitySummary?.comments)}</span>
-                <span className="activity-label">Comments Added</span>
+                <span className="activity-count">{safeNum(activitySummary.comments)}</span>
+                <span className="activity-label">Comments</span>
               </div>
               <div className="activity-stat">
                 <span className="activity-icon">🔄</span>
-                <span className="activity-count">{safeNum(reportData.activitySummary?.statusChanges)}</span>
+                <span className="activity-count">{safeNum(activitySummary.statusChanges)}</span>
                 <span className="activity-label">Status Changes</span>
               </div>
               <div className="activity-stat">
                 <span className="activity-icon">👤</span>
-                <span className="activity-count">{safeNum(reportData.activitySummary?.reassignments)}</span>
+                <span className="activity-count">{safeNum(activitySummary.reassignments)}</span>
                 <span className="activity-label">Reassignments</span>
               </div>
               <div className="activity-stat">
                 <span className="activity-icon">🔗</span>
-                <span className="activity-count">{safeNum(reportData.activitySummary?.commits)}</span>
-                <span className="activity-label">Commits Linked</span>
+                <span className="activity-count">{safeNum(activitySummary.commits)}</span>
+                <span className="activity-label">Commits</span>
               </div>
             </div>
           </div>
 
-          {/* Download Section */}
+          {/* Download */}
           <div className="download-section">
-            <button 
-              className="btn btn-success btn-xl"
-              onClick={generatePDF}
-              disabled={generating}
-            >
-              {generating ? '⏳ Generating Professional PDF...' : '📥 Download Professional PDF Report'}
+            <button className="btn btn-success btn-xl" onClick={generatePDF} disabled={generating}>
+              {generating ? '⏳ Generating...' : '📥 Download Professional PDF Report'}
             </button>
-            <p className="download-note">
-              The PDF report will include all charts, tables, and metrics shown above with professional formatting and a confidential footer on each page.
-            </p>
+            <p className="download-note">Includes all charts, tables, and metrics with professional formatting.</p>
           </div>
         </div>
       )}

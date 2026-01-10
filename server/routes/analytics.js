@@ -12,6 +12,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const storage = require('../storage');
+const { query, queryOne } = require('../storage/mysql/db');
 const { authMiddleware } = require('../middleware/auth');
 
 // Logo path configuration - adjust based on your project structure
@@ -79,11 +80,22 @@ router.post('/report-data', authMiddleware, async (req, res) => {
 
     const { reportType, startDate, endDate, projects } = req.body;
     
+    console.log('[Report API] Request received:');
+    console.log('  - reportType:', reportType);
+    console.log('  - startDate:', startDate);
+    console.log('  - endDate:', endDate);
+    console.log('  - projects:', projects);
+    
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'Start and end dates are required' });
     }
 
     const reportData = await generateReportData(reportType, startDate, endDate, projects);
+    
+    console.log('[Report API] Response summary:');
+    console.log('  - currentSnapshot.totalBugs:', reportData.currentSnapshot?.totalBugs);
+    console.log('  - statusDistribution length:', reportData.statusDistribution?.length);
+    
     res.json(reportData);
   } catch (error) {
     console.error('Error generating report data:', error);
@@ -123,18 +135,54 @@ async function generateReportData(reportType, startDate, endDate, projectKeys) {
   const end = new Date(endDate);
   end.setHours(23, 59, 59, 999);
 
-  // Get all bugs
+  // Get all bugs - Direct SQL query for reliability
   let allBugs = [];
   try {
-    allBugs = await storage.getAllBugs();
+    const bugsQuery = `
+      SELECT 
+        b.bug_id as bugId,
+        b.title,
+        b.description,
+        b.status,
+        b.severity,
+        b.priority,
+        b.reporter,
+        b.assignee,
+        b.qa_owner as qaOwner,
+        b.project_key as projectKey,
+        b.project_id as projectId,
+        b.created_at as createdAt,
+        b.updated_at as updatedAt,
+        b.closed_at as resolvedAt,
+        p.name as projectName
+      FROM bugs b
+      JOIN projects p ON b.project_id = p.id
+      ORDER BY b.updated_at DESC
+    `;
+    allBugs = await query(bugsQuery);
+    console.log('[Report] Total bugs fetched:', allBugs.length);
+    
+    if (allBugs.length > 0) {
+      console.log('[Report] First bug projectKey:', allBugs[0].projectKey);
+    }
   } catch (e) {
-    console.error('Error fetching bugs:', e);
+    console.error('[Report] Error fetching bugs:', e.message);
     allBugs = [];
   }
 
-  // Filter bugs by project if specified
+  // Filter bugs by project if specified - CASE INSENSITIVE matching
   if (projectKeys && projectKeys.length > 0) {
-    allBugs = allBugs.filter(bug => projectKeys.includes(bug.projectKey));
+    const normalizedKeys = projectKeys.map(k => (k || '').toUpperCase());
+    
+    console.log('[Report] Filtering by projects:', normalizedKeys.join(', '));
+    
+    const beforeFilter = allBugs.length;
+    allBugs = allBugs.filter(bug => {
+      const bugKey = (bug.projectKey || '').toUpperCase();
+      return normalizedKeys.includes(bugKey);
+    });
+    
+    console.log('[Report] Bugs after filter:', allBugs.length, '(was', beforeFilter, ')');
   }
 
   // Get bugs created/resolved in date range
@@ -149,7 +197,7 @@ async function generateReportData(reportType, startDate, endDate, projectKeys) {
     return resolved >= start && resolved <= end && (bug.status === 'Resolved' || bug.status === 'Closed');
   });
 
-  // Calculate summary metrics
+  // Calculate summary metrics (for the period)
   const summary = {
     totalBugsCreated: bugsInRange.length,
     totalBugsResolved: bugsResolvedInRange.length,
@@ -159,6 +207,42 @@ async function generateReportData(reportType, startDate, endDate, projectKeys) {
     resolutionRate: bugsInRange.length > 0 ? (bugsResolvedInRange.length / bugsInRange.length) * 100 : 0,
     highlights: generateHighlights(bugsInRange, bugsResolvedInRange, allBugs)
   };
+
+  // Current snapshot - overall stats for selected projects (like Admin Dashboard)
+  const currentSnapshot = {
+    totalBugs: allBugs.length,
+    open: allBugs.filter(b => b.status === 'Open' || b.status === 'Reopened').length,
+    inProgress: allBugs.filter(b => b.status === 'In Progress').length,
+    resolved: allBugs.filter(b => b.status === 'Resolved').length,
+    closed: allBugs.filter(b => b.status === 'Closed').length,
+    critical: allBugs.filter(b => b.severity === 'Critical').length,
+    high: allBugs.filter(b => b.severity === 'High').length
+  };
+
+  // Status distribution for current state (all bugs in selected projects)
+  const statusDistribution = generateDistribution(allBugs, 'status', {
+    'Open': '#3b82f6',
+    'In Progress': '#8b5cf6',
+    'Resolved': '#10b981',
+    'Closed': '#6b7280',
+    'Reopened': '#f59e0b'
+  });
+
+  // Severity distribution for current state (all bugs, not just in range)
+  const currentSeverityDistribution = generateDistribution(allBugs, 'severity', {
+    Critical: '#dc2626',
+    High: '#f97316',
+    Medium: '#eab308',
+    Low: '#22c55e'
+  });
+
+  // Priority distribution for current state
+  const currentPriorityDistribution = generateDistribution(allBugs, 'priority', {
+    Critical: '#dc2626',
+    High: '#f97316',
+    Medium: '#eab308',
+    Low: '#22c55e'
+  });
 
   // ARB Trend (daily resolution rates)
   const arbTrend = generateARBTrend(allBugs, start, end);
@@ -215,6 +299,10 @@ async function generateReportData(reportType, startDate, endDate, projectKeys) {
 
   return {
     summary,
+    currentSnapshot,
+    statusDistribution,
+    currentSeverityDistribution,
+    currentPriorityDistribution,
     arbTrend,
     projectComparison,
     assigneePerformance,
@@ -885,8 +973,8 @@ async function generatePDFReport(data, reportType, startDate, endDate, generated
         doc.text(`Previous Week - Filed: ${wow.previousWeek?.created || 0}, Resolved: ${wow.previousWeek?.resolved || 0}, Rate: ${(wow.previousWeek?.rate || 0).toFixed(1)}%`, 50, doc.y);
         doc.y += 18;
         
-        const createdTrend = wow.createdChange >= 0 ? '▲' : '▼';
-        const resolvedTrend = wow.resolvedChange >= 0 ? '▲' : '▼';
+        const createdTrend = wow.createdChange >= 0 ? 'â–²' : 'â–¼';
+        const resolvedTrend = wow.resolvedChange >= 0 ? 'â–²' : 'â–¼';
         
         doc.fillColor(wow.createdChange > 0 ? colors.warning : colors.success)
            .text(`Filed Change: ${createdTrend} ${Math.abs(wow.createdChange || 0).toFixed(1)}%`, 50, doc.y);
@@ -925,13 +1013,13 @@ async function generatePDFReport(data, reportType, startDate, endDate, generated
          .fillColor(colors.dark);
 
       const summaryPoints = [
-        `• Total bugs filed during this period: ${data.summary?.totalBugsCreated || 0}`,
-        `• Total bugs resolved during this period: ${data.summary?.totalBugsResolved || 0}`,
-        `• Overall resolution rate: ${(data.summary?.resolutionRate || 0).toFixed(1)}%`,
-        `• Average resolution time: ${(data.summary?.avgResolutionTime || 0).toFixed(1)} days`,
-        `• Critical bugs requiring attention: ${data.summary?.criticalBugs || 0}`,
-        `• Projects covered: ${(data.projectHealth || []).length}`,
-        `• Team members with assignments: ${(data.assigneePerformance || []).length}`
+        `â€¢ Total bugs filed during this period: ${data.summary?.totalBugsCreated || 0}`,
+        `â€¢ Total bugs resolved during this period: ${data.summary?.totalBugsResolved || 0}`,
+        `â€¢ Overall resolution rate: ${(data.summary?.resolutionRate || 0).toFixed(1)}%`,
+        `â€¢ Average resolution time: ${(data.summary?.avgResolutionTime || 0).toFixed(1)} days`,
+        `â€¢ Critical bugs requiring attention: ${data.summary?.criticalBugs || 0}`,
+        `â€¢ Projects covered: ${(data.projectHealth || []).length}`,
+        `â€¢ Team members with assignments: ${(data.assigneePerformance || []).length}`
       ];
 
       summaryPoints.forEach(point => {

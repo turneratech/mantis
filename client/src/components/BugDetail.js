@@ -118,7 +118,7 @@ function BugDetail() {
     <div>
       <div className="bug-detail-header">
         <div className="bug-detail-title">
-          <Link to={`/projects/${projectKey}/bugs`} className="btn btn-secondary btn-sm">← Back</Link>
+          <Link to={`/projects/${projectKey}/bugs`} className="btn btn-secondary btn-sm">â† Back</Link>
           <span className="project-badge">{projectKey}</span>
           <h1>{bug.bugId}: {bug.title}</h1>
           <span className={`badge badge-${bug.status?.toLowerCase().replace(' ', '-')}`}>
@@ -260,7 +260,7 @@ function BugDetail() {
       {/* FILE ATTACHMENTS - Click to open in browser */}
       <div className="card" style={{ marginTop: '1.5rem' }}>
         <h3 style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          📎 Attachments
+          ðŸ“Ž Attachments
           {attachments.length > 0 && (
             <span style={{
               backgroundColor: 'var(--primary-color, #4a90e2)',
@@ -301,8 +301,9 @@ function BugDetail() {
                       <span className="activity-time">{formatDate(activity.timestamp)}</span>
                     </div>
                     <div className={`activity-message ${activity.action === 'comment' ? 'comment' : ''} ${activity.action === 'commit' ? 'commit' : ''}`}>
-                      {activity.action === 'comment' ? activity.message : 
-                       activity.action === 'commit' ? (
+                      {activity.action === 'comment' ? (
+                        <span style={{ whiteSpace: 'pre-wrap' }}>{activity.message}</span>
+                      ) : activity.action === 'commit' ? (
                         <span dangerouslySetInnerHTML={{ 
                           __html: activity.message.replace(
                             /(https?:\/\/[^\s]+)/g, 
@@ -321,12 +322,13 @@ function BugDetail() {
 
           {/* Comment Form - disabled for closed bugs */}
           <form className="comment-form" onSubmit={handleAddComment}>
-            <input
-              type="text"
-              className="form-control"
+            <textarea
+              className="form-control comment-textarea"
               placeholder="Add a comment..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
+              rows={2}
+              disabled={bug.status === 'Closed'}
             />
             <button 
               type="submit" 

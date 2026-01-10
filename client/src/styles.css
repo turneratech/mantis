@@ -884,10 +884,20 @@ textarea.form-control {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
+  align-items: flex-start;
 }
 
 .comment-form .form-control {
   flex: 1;
+}
+
+.comment-form .comment-textarea {
+  flex: 1;
+  min-height: 60px;
+  max-height: 150px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.4;
 }
 
 /* Status Bars */
@@ -2086,7 +2096,7 @@ textarea.form-control {
 }
 
 .godmode-only::before {
-  content: '⚡ Super User Only';
+  content: 'âš¡ Super User Only';
   display: block;
   font-size: 0.7rem;
   color: #fbbf24;

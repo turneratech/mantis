@@ -1,10 +1,10 @@
-/* Report Generator - Minimal Styles (extends existing app styles) */
+/* Report Generator - Professional Styles */
 
 .report-generator {
   padding-bottom: 3rem;
 }
 
-/* Config Grid - Two columns for Report Type and Date Range */
+/* Config Grid */
 .report-config-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -12,7 +12,6 @@
   margin-bottom: 1rem;
 }
 
-/* Report Type Buttons */
 .report-type-buttons {
   display: flex;
   gap: 1rem;
@@ -42,7 +41,6 @@
   color: white;
 }
 
-/* Date Range Inputs */
 .date-range-inputs {
   display: flex;
   gap: 1.5rem;
@@ -68,7 +66,6 @@
   width: 100%;
 }
 
-/* Project Selection */
 .project-count-badge {
   margin-left: 0.75rem;
   padding: 0.25rem 0.75rem;
@@ -90,7 +87,6 @@
   font-size: 0.85rem;
 }
 
-/* Action Buttons */
 .report-actions {
   display: flex;
   gap: 1rem;
@@ -123,7 +119,7 @@
   cursor: not-allowed;
 }
 
-/* Report Preview */
+/* Preview Section */
 .report-preview {
   margin-top: 2rem;
 }
@@ -152,22 +148,101 @@
   font-weight: 500;
 }
 
-/* Summary Card */
+.section-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-top: -0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+/* ==================== Stats Grid (like Admin Dashboard) ==================== */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1rem;
+}
+
+.stat-card {
+  background: var(--bg-input);
+  border-radius: 10px;
+  padding: 1.25rem;
+  text-align: center;
+  border-left: 4px solid var(--border);
+  transition: transform 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.stat-card.primary {
+  background: rgba(79, 70, 229, 0.1);
+  border-color: var(--primary);
+}
+
+.stat-card.primary .stat-value {
+  color: var(--primary);
+}
+
+.stat-card.warning {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: var(--warning);
+}
+
+.stat-card.warning .stat-value {
+  color: var(--warning);
+}
+
+.stat-card.success {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: var(--success);
+}
+
+.stat-card.success .stat-value {
+  color: var(--success);
+}
+
+.stat-card.critical {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--danger);
+}
+
+.stat-card.critical .stat-value {
+  color: var(--danger);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 0.25rem;
+}
+
+/* ==================== Summary Card ==================== */
 .summary-card {
   background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-tertiary) 100%);
   border: 1px solid var(--primary);
+  margin-top: 1.5rem;
 }
 
 .summary-card h3 {
   color: var(--primary);
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .summary-metrics {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1rem;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .summary-metric {
@@ -214,10 +289,17 @@
   margin-bottom: 0;
 }
 
-/* Charts */
+/* ==================== Charts Grids ==================== */
 .charts-grid.two-col {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.charts-grid.three-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
   margin-top: 1.5rem;
 }
@@ -228,9 +310,19 @@
 
 .chart-card h3 {
   margin-bottom: 1rem;
+  font-size: 1rem;
 }
 
-/* Tables */
+.no-data {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ==================== Tables ==================== */
 .report-table {
   font-size: 0.9rem;
 }
@@ -275,6 +367,18 @@
 .health-score.medium { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
 .health-score.low { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
 
+.rate-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.rate-badge.good { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+.rate-badge.medium { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+.rate-badge.low { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
 .status-indicator {
   font-size: 0.85rem;
   font-weight: 500;
@@ -284,7 +388,7 @@
 .status-indicator.warning { color: var(--warning); }
 .status-indicator.critical { color: var(--danger); }
 
-/* Week over Week */
+/* ==================== Week over Week ==================== */
 .wow-comparison {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -328,7 +432,14 @@
 .wow-change.down { background: rgba(16, 185, 129, 0.2); color: var(--success); }
 .wow-change.up.good { background: rgba(16, 185, 129, 0.2); color: var(--success); }
 
-/* Activity Summary */
+.wow-prev {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* ==================== Activity Summary ==================== */
 .activity-summary {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -362,7 +473,7 @@
   margin-top: 0.25rem;
 }
 
-/* Download */
+/* ==================== Download Section ==================== */
 .download-section {
   margin-top: 2rem;
   padding: 2rem;
@@ -378,7 +489,17 @@
   font-size: 0.9rem;
 }
 
-/* Responsive */
+/* ==================== Responsive ==================== */
+@media (max-width: 1200px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .charts-grid.three-col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 1024px) {
   .summary-metrics {
     grid-template-columns: repeat(3, 1fr);
@@ -400,11 +521,16 @@
     gap: 1rem;
   }
   
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
   .summary-metrics {
     grid-template-columns: repeat(2, 1fr);
   }
   
-  .charts-grid.two-col {
+  .charts-grid.two-col,
+  .charts-grid.three-col {
     grid-template-columns: 1fr;
   }
   

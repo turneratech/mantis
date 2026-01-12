@@ -12,6 +12,9 @@ function BugForm() {
   const { user } = useAuth();
   const isEditing = Boolean(bugId);
   
+  // Check if user can delete bugs/comments (admin/godmode only)
+  const canDelete = user && (user.role === 'admin' || user.role === 'godmode');
+  
   const [users, setUsers] = useState([]);
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -173,6 +176,30 @@ function BugForm() {
     }
   };
 
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) return;
+
+    try {
+      const res = await axios.delete(`/api/bugs/${projectKey}/${bugId}/comment/${commentId}`);
+      setActivityLog(res.data.activityLog || []);
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      setError('Failed to delete comment');
+    }
+  };
+
+  const handleDeleteBug = async () => {
+    if (!window.confirm('Are you sure you want to delete this bug? This action cannot be undone.')) return;
+
+    try {
+      await axios.delete(`/api/bugs/${projectKey}/${bugId}`);
+      navigate(`/projects/${projectKey}/bugs`);
+    } catch (error) {
+      console.error('Error deleting bug:', error);
+      setError('Failed to delete bug');
+    }
+  };
+
   // Format date for display
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
@@ -206,7 +233,7 @@ function BugForm() {
             className="btn btn-secondary btn-sm" 
             style={{ marginBottom: '0.5rem' }}
           >
-            ← Back
+            &#8592; Back
           </Link>
           <h1 className="page-title">
             {isEditing ? `Edit ${bugId}` : `New Bug in ${project?.name || projectKey}`}
@@ -476,16 +503,27 @@ function BugForm() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? 'Saving...' : (isEditing ? 'Update Bug' : 'Create Bug')}
-            </button>
-            <Link 
-              to={`/projects/${projectKey}/bugs`} 
-              className="btn btn-secondary"
-            >
-              Cancel
-            </Link>
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button type="submit" className="btn btn-primary" disabled={submitting}>
+                {submitting ? 'Saving...' : (isEditing ? 'Update Bug' : 'Create Bug')}
+              </button>
+              <Link 
+                to={`/projects/${projectKey}/bugs`} 
+                className="btn btn-secondary"
+              >
+                Cancel
+              </Link>
+            </div>
+            {isEditing && canDelete && (
+              <button 
+                type="button" 
+                className="btn btn-danger" 
+                onClick={handleDeleteBug}
+              >
+                Delete Bug
+              </button>
+            )}
           </div>
         </form>
       </div>
@@ -502,7 +540,7 @@ function BugForm() {
                 </div>
               ) : (
                 [...activityLog].reverse().map((activity, idx) => (
-                  <div key={idx} className="activity-item">
+                  <div key={activity.id || idx} className="activity-item">
                     <div className="activity-avatar">
                       {getInitials(activity.user)}
                     </div>
@@ -510,10 +548,22 @@ function BugForm() {
                       <div className="activity-header">
                         <span className="activity-user">{activity.user}</span>
                         <span className="activity-time">{formatDate(activity.timestamp)}</span>
+                        {/* Delete button for comments - admin/godmode only */}
+                        {canDelete && activity.action === 'comment' && activity.id && (
+                          <button
+                            type="button"
+                            className="btn-delete-comment"
+                            onClick={() => handleDeleteComment(activity.id)}
+                            title="Delete comment"
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </div>
                       <div className={`activity-message ${activity.action === 'comment' ? 'comment' : ''} ${activity.action === 'commit' ? 'commit' : ''}`}>
-                        {activity.action === 'comment' ? activity.message : 
-                         activity.action === 'commit' ? (
+                        {activity.action === 'comment' ? (
+                          <span style={{ whiteSpace: 'pre-wrap' }}>{activity.message}</span>
+                        ) : activity.action === 'commit' ? (
                           <span dangerouslySetInnerHTML={{ 
                             __html: activity.message.replace(
                               /(https?:\/\/[^\s]+)/g, 
@@ -532,12 +582,12 @@ function BugForm() {
 
             {/* Comment Form */}
             <form className="comment-form" onSubmit={handleAddComment}>
-              <input
-                type="text"
-                className="form-control"
+              <textarea
+                className="form-control comment-textarea"
                 placeholder="Add a comment..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
+                rows={2}
               />
               <button 
                 type="submit" 

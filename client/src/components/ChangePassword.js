@@ -60,7 +60,7 @@ function ChangePassword() {
       <div className="page-header">
         <div>
           <Link to="/" className="btn btn-secondary btn-sm" style={{ marginBottom: '0.5rem' }}>
-            ← Back
+            &#8592; Back
           </Link>
           <h1 className="page-title">Change Password</h1>
         </div>

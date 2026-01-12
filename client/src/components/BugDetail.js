@@ -14,6 +14,9 @@ function BugDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [attachments, setAttachments] = useState([]);
 
+  // Check if user has elevated privileges (can delete bugs/comments)
+  const canDelete = user && (user.role === 'admin' || user.role === 'godmode' || bug?.userRole === 'admin' || bug?.userRole === 'godmode');
+
   useEffect(() => {
     fetchBug();
   }, [projectKey, bugId]);
@@ -73,6 +76,18 @@ function BugDetail() {
     }
   };
 
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) return;
+
+    try {
+      const res = await axios.delete(`/api/bugs/${projectKey}/${bugId}/comment/${commentId}`);
+      setBug(res.data);
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      alert('Failed to delete comment');
+    }
+  };
+
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this bug?')) return;
 
@@ -118,7 +133,7 @@ function BugDetail() {
     <div>
       <div className="bug-detail-header">
         <div className="bug-detail-title">
-          <Link to={`/projects/${projectKey}/bugs`} className="btn btn-secondary btn-sm">â† Back</Link>
+          <Link to={`/projects/${projectKey}/bugs`} className="btn btn-secondary btn-sm">&#8592; Back</Link>
           <span className="project-badge">{projectKey}</span>
           <h1>{bug.bugId}: {bug.title}</h1>
           <span className={`badge badge-${bug.status?.toLowerCase().replace(' ', '-')}`}>
@@ -137,9 +152,11 @@ function BugDetail() {
           >
             Reopen Bug
           </button>
-          <button className="btn btn-danger" onClick={handleDelete}>
-            Delete
-          </button>
+          {canDelete && (
+            <button className="btn btn-danger" onClick={handleDelete}>
+              Delete Bug
+            </button>
+          )}
         </div>
       </div>
 
@@ -291,7 +308,7 @@ function BugDetail() {
               </div>
             ) : (
               [...(bug.activityLog || [])].reverse().map((activity, idx) => (
-                <div key={idx} className="activity-item">
+                <div key={activity.id || idx} className="activity-item">
                   <div className="activity-avatar">
                     {getInitials(activity.user)}
                   </div>
@@ -299,6 +316,16 @@ function BugDetail() {
                     <div className="activity-header">
                       <span className="activity-user">{activity.user}</span>
                       <span className="activity-time">{formatDate(activity.timestamp)}</span>
+                      {/* Delete button for comments - admin/godmode only */}
+                      {canDelete && activity.action === 'comment' && activity.id && (
+                        <button
+                          className="btn-delete-comment"
+                          onClick={() => handleDeleteComment(activity.id)}
+                          title="Delete comment"
+                        >
+                          🗑️
+                        </button>
+                      )}
                     </div>
                     <div className={`activity-message ${activity.action === 'comment' ? 'comment' : ''} ${activity.action === 'commit' ? 'commit' : ''}`}>
                       {activity.action === 'comment' ? (

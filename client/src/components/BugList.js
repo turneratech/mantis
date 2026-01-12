@@ -98,7 +98,7 @@ function BugList({ showMyBugs = false }) {
         <div>
           {projectKey && (
             <Link to="/projects" className="btn btn-secondary btn-sm" style={{ marginBottom: '0.5rem' }}>
-              ← Back to Projects
+              &#8592; Back to Projects
             </Link>
           )}
           <h1 className="page-title">{pageTitle} ({filteredBugs.length})</h1>

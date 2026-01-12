@@ -128,6 +128,240 @@ router.post('/generate-report', authMiddleware, async (req, res) => {
   }
 });
 
+
+/**
+ * ANALYTICS.JS PATCH - AI Commentary Integration
+ * 
+ * Instructions:
+ * 1. Add the OPENAI_API_KEY to your .env file:
+ *    OPENAI_API_KEY=sk-your-api-key-here
+ * 
+ * 2. Install the OpenAI package:
+ *    npm install openai --save
+ * 
+ * 3. Add this code block AFTER line 129 in your analytics.js file
+ *    (after the generate-report endpoint, before the generateReportData function)
+ */
+
+// ==================== AI COMMENTARY ENDPOINT ====================
+// Add this after the /generate-report endpoint
+
+
+/**
+ * OPTIMIZED AI Commentary Endpoint
+ * Token-efficient: ~200-300 tokens per request
+ * With server-side caching to prevent redundant API calls
+ * 
+ * Add to your analytics.js after line 129
+ */
+
+// In-memory cache for AI commentary (server-side)
+const aiCommentaryCache = new Map();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Clean expired cache entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of aiCommentaryCache.entries()) {
+    if (now - value.timestamp > CACHE_TTL) {
+      aiCommentaryCache.delete(key);
+    }
+  }
+}, 60 * 60 * 1000); // Clean every hour
+
+// ==================== AI COMMENTARY ENDPOINT ====================
+router.post('/ai-commentary', authMiddleware, async (req, res) => {
+  try {
+    if (!hasElevatedPrivileges(req.user)) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { reportData, reportType, startDate, endDate } = req.body;
+
+    // Generate cache key
+    const cacheKey = `${reportType}_${startDate}_${endDate}_${JSON.stringify(reportData?.summary || {}).slice(0, 50)}`;
+    
+    // Check server-side cache first
+    const cached = aiCommentaryCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      console.log('[AI Commentary] Returning cached response');
+      return res.json(cached.data);
+    }
+
+    const openaiKey = process.env.OPENAI_API_KEY;
+    
+    if (!openaiKey) {
+      console.log('[AI Commentary] No API key, using fallback');
+      const fallback = generateSmartFallback(reportData, reportType);
+      return res.json(fallback);
+    }
+
+    try {
+      const OpenAI = require('openai');
+      const openai = new OpenAI({ apiKey: openaiKey });
+
+      // OPTIMIZED: Minimal data payload (~100 tokens input)
+      const miniData = compressData(reportData);
+
+      // OPTIMIZED: Concise prompt (~150 tokens)
+      const prompt = `Bug report: ${JSON.stringify(miniData)}
+Write PM commentary as JSON:
+{"exec":"2 sentence summary","team":"1 sentence","proj":"1 sentence","risk":"HIGH/MED/LOW: reason","recs":["action1","action2","action3"],"close":"1 encouraging sentence"}`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: 'You are a PM writing concise bug reports. JSON only.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.5, // Lower = more deterministic, fewer tokens
+        max_tokens: 350   // Limit response size
+      });
+
+      const responseText = completion.choices[0]?.message?.content || '';
+      
+      let commentary;
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          // Map shortened keys to full keys
+          commentary = {
+            executiveSummary: parsed.exec || parsed.executiveSummary || '',
+            teamAnalysis: parsed.team || parsed.teamAnalysis || '',
+            projectAnalysis: parsed.proj || parsed.projectAnalysis || '',
+            riskAssessment: parsed.risk || parsed.riskAssessment || '',
+            recommendations: parsed.recs || parsed.recommendations || [],
+            closingNote: parsed.close || parsed.closingNote || ''
+          };
+        } else {
+          throw new Error('No JSON');
+        }
+      } catch (e) {
+        console.error('[AI Commentary] Parse error:', e.message);
+        commentary = generateSmartFallback(reportData, reportType);
+      }
+
+      // Cache the result
+      aiCommentaryCache.set(cacheKey, { data: commentary, timestamp: Date.now() });
+      
+      // Log token usage
+      console.log('[AI Commentary] Tokens used:', completion.usage?.total_tokens || 'unknown');
+
+      res.json(commentary);
+
+    } catch (apiError) {
+      console.error('[AI Commentary] API error:', apiError.message);
+      const fallback = generateSmartFallback(reportData, reportType);
+      res.json(fallback);
+    }
+
+  } catch (error) {
+    console.error('[AI Commentary] Error:', error);
+    res.status(500).json({ error: 'Failed to generate commentary' });
+  }
+});
+
+// Compress report data to minimal tokens
+function compressData(reportData) {
+  const s = reportData?.summary || {};
+  const c = reportData?.currentSnapshot || {};
+  const ph = reportData?.projectHealth || [];
+  const ap = reportData?.assigneePerformance || [];
+  const cb = reportData?.criticalBugs || [];
+
+  return {
+    filed: s.totalBugsCreated || 0,
+    resolved: s.totalBugsResolved || 0,
+    rate: Math.round(s.resolutionRate || 0),
+    net: s.netChange || 0,
+    crit: c.critical || 0,
+    open: c.open || 0,
+    aging: cb.filter(b => (b.age || 0) > 7).length,
+    healthy: ph.filter(p => (p.healthScore || 0) >= 70).length,
+    total_proj: ph.length,
+    top: ap.filter(u => (u.resolved || 0) > 0)
+           .sort((a, b) => (b.resolved || 0) - (a.resolved || 0))
+           .slice(0, 2)
+           .map(u => ({ n: u.assignee?.split(' ')[0], r: u.resolved }))
+  };
+}
+
+// Smart fallback without AI
+function generateSmartFallback(reportData, reportType) {
+  const s = reportData?.summary || {};
+  const c = reportData?.currentSnapshot || {};
+  const cb = reportData?.criticalBugs || [];
+  const ph = reportData?.projectHealth || [];
+  const ap = reportData?.assigneePerformance || [];
+
+  const rate = s.resolutionRate || 0;
+  const net = s.netChange || 0;
+  const crit = c.critical || 0;
+  const aging = cb.filter(b => (b.age || 0) > 7).length;
+
+  // Executive Summary
+  let exec = '';
+  if (rate >= 100) exec = `Strong ${reportType}! Resolved more than filed, backlog down by ${Math.abs(net)}. `;
+  else if (rate >= 70) exec = `Good progress: ${rate.toFixed(0)}% resolution rate, ${s.totalBugsResolved || 0} bugs closed. `;
+  else if (rate >= 40) exec = `Moderate ${reportType}: ${rate.toFixed(0)}% rate. Backlog needs focus. `;
+  else exec = `Challenging ${reportType}: ${rate.toFixed(0)}% rate, backlog grew by ${net}. `;
+  exec += crit > 0 ? `${crit} critical bugs pending.` : 'No critical bugs.';
+
+  // Team
+  const top = ap.filter(u => (u.resolved || 0) > 0).sort((a, b) => (b.resolved || 0) - (a.resolved || 0))[0];
+  const totalRes = ap.reduce((sum, u) => sum + (u.resolved || 0), 0);
+  const team = top 
+    ? `${totalRes} bugs resolved. ${top.assignee} led with ${top.resolved}.`
+    : `${ap.length} team members contributed.`;
+
+  // Projects
+  const healthy = ph.filter(p => (p.healthScore || 0) >= 70).length;
+  const atRisk = ph.filter(p => (p.healthScore || 0) < 40).map(p => p.projectKey);
+  let proj = `${healthy}/${ph.length} projects healthy.`;
+  if (atRisk.length > 0) proj += ` At-risk: ${atRisk.join(', ')}.`;
+
+  // Risk
+  let risk = 'LOW RISK: Issues addressed promptly.';
+  if (aging > 5 || crit > 10) risk = `HIGH RISK: ${aging} bugs aging >7 days, ${crit} critical.`;
+  else if (aging > 0 || crit > 5) risk = `MEDIUM RISK: ${aging} aging bugs need attention.`;
+
+  // Recommendations
+  const recs = [];
+  if (crit > 0) recs.push(`Prioritize ${crit} critical bugs`);
+  if (rate < 50) recs.push('Review capacity for bug focus');
+  if (aging > 0) recs.push(`Address ${aging} aging bugs`);
+  if (atRisk.length > 0) recs.push('Health-check at-risk projects');
+  if (net > 5) recs.push('Schedule backlog grooming');
+  while (recs.length < 3) recs.push('Continue monitoring metrics');
+
+  // Close
+  const close = rate >= 80 ? "Excellent work! Keep it up." 
+    : rate >= 60 ? "Good progress. Stay focused." 
+    : "Let's discuss improvement strategies.";
+
+  return {
+    executiveSummary: exec,
+    teamAnalysis: team,
+    projectAnalysis: proj,
+    riskAssessment: risk,
+    recommendations: recs.slice(0, 3),
+    closingNote: close
+  };
+}
+
+// ==================== END AI COMMENTARY ====================
+
+
+
+// ==================== END AI COMMENTARY ====================
+
+
+// ==================== END AI COMMENTARY CODE ====================
+
+
+
+
 // ==================== REPORT DATA GENERATION HELPERS ====================
 
 async function generateReportData(reportType, startDate, endDate, projectKeys) {
@@ -297,6 +531,112 @@ async function generateReportData(reportType, startDate, endDate, projectKeys) {
   // Activity summary
   const activitySummary = await generateActivitySummary(allBugs, start, end);
 
+  // ==================== ADDITIONAL ANALYTICS ====================
+
+  // Top Reporters
+  const reporterStats = {};
+  allBugs.forEach(bug => {
+    if (!bug.reporter) return;
+    if (!reporterStats[bug.reporter]) {
+      reporterStats[bug.reporter] = { username: bug.reporter, reported: 0, critical: 0, high: 0 };
+    }
+    reporterStats[bug.reporter].reported++;
+    if (bug.severity === 'Critical') reporterStats[bug.reporter].critical++;
+    if (bug.severity === 'High') reporterStats[bug.reporter].high++;
+  });
+  const topReporters = Object.values(reporterStats)
+    .sort((a, b) => b.reported - a.reported)
+    .slice(0, 10);
+
+  // Bug Aging Analysis (Open bugs by age)
+  const openBugs = allBugs.filter(b => b.status === 'Open' || b.status === 'In Progress' || b.status === 'Reopened');
+  const bugAging = {
+    lessThan7Days: 0,
+    between7And14Days: 0,
+    between14And30Days: 0,
+    moreThan30Days: 0
+  };
+  const now = new Date();
+  openBugs.forEach(bug => {
+    const age = Math.floor((now - new Date(bug.createdAt)) / (1000 * 60 * 60 * 24));
+    if (age < 7) bugAging.lessThan7Days++;
+    else if (age < 14) bugAging.between7And14Days++;
+    else if (age < 30) bugAging.between14And30Days++;
+    else bugAging.moreThan30Days++;
+  });
+  const bugAgingChart = [
+    { name: '< 7 days', value: bugAging.lessThan7Days, color: '#22c55e' },
+    { name: '7-14 days', value: bugAging.between7And14Days, color: '#eab308' },
+    { name: '14-30 days', value: bugAging.between14And30Days, color: '#f97316' },
+    { name: '> 30 days', value: bugAging.moreThan30Days, color: '#dc2626' }
+  ].filter(d => d.value > 0);
+
+  // Workload Distribution (for pie chart)
+  const workloadDistribution = assigneePerformance
+    .filter(a => a.assigned > 0)
+    .slice(0, 8)
+    .map((a, i) => ({
+      name: a.username || a.assignee,
+      value: a.assigned - a.resolved,
+      color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16'][i % 8]
+    }))
+    .filter(d => d.value > 0);
+
+  // Environment Distribution
+  const envStats = {};
+  allBugs.forEach(bug => {
+    const env = bug.environment || 'Unknown';
+    if (!envStats[env]) envStats[env] = 0;
+    envStats[env]++;
+  });
+  const environmentDistribution = Object.entries(envStats)
+    .map(([name, value], i) => ({
+      name,
+      value,
+      color: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][i % 5]
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  // Weekly Trend (last 12 weeks)
+  const weeklyTrend = [];
+  for (let i = 11; i >= 0; i--) {
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - (i * 7) - weekStart.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+
+    const created = allBugs.filter(b => {
+      const d = new Date(b.createdAt);
+      return d >= weekStart && d <= weekEnd;
+    }).length;
+
+    const closed = allBugs.filter(b => {
+      if (b.status !== 'Closed' && b.status !== 'Resolved') return false;
+      const d = b.resolvedAt ? new Date(b.resolvedAt) : new Date(b.updatedAt);
+      return d >= weekStart && d <= weekEnd;
+    }).length;
+
+    weeklyTrend.push({
+      week: `W${12 - i}`,
+      created,
+      closed
+    });
+  }
+
+  // Module/Component Distribution
+  const moduleStats = {};
+  allBugs.forEach(bug => {
+    const mod = bug.module || 'Unspecified';
+    if (!moduleStats[mod]) moduleStats[mod] = 0;
+    moduleStats[mod]++;
+  });
+  const moduleDistribution = Object.entries(moduleStats)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
   return {
     summary,
     currentSnapshot,
@@ -312,7 +652,14 @@ async function generateReportData(reportType, startDate, endDate, projectKeys) {
     projectHealth,
     criticalBugs,
     weekOverWeek,
-    activitySummary
+    activitySummary,
+    // New analytics
+    topReporters,
+    bugAgingChart,
+    workloadDistribution,
+    environmentDistribution,
+    weeklyTrend,
+    moduleDistribution
   };
 }
 

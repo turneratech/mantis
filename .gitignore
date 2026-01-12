@@ -30,6 +30,7 @@ npm-debug.log*
 pids/
 *.pid
 *.seed
+*.min.js
 
 # Coverage
 coverage/

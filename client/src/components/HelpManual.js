@@ -6,14 +6,14 @@ function HelpManual() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const sections = [
-    { id: 'getting-started', title: '🚀 Getting Started', icon: '🚀' },
-    { id: 'projects', title: '📁 Projects', icon: '📁' },
-    { id: 'bugs', title: '🐛 Bug Management', icon: '🐛' },
-    { id: 'fields', title: '📝 Field Reference', icon: '📝' },
-    { id: 'workflow', title: '🔄 Workflow', icon: '🔄' },
-    { id: 'tips', title: '💡 Tips & Best Practices', icon: '💡' },
-    { id: 'shortcuts', title: '⌨️ Keyboard Shortcuts', icon: '⌨️' },
-    { id: 'faq', title: '❓ FAQ', icon: '❓' },
+    { id: 'getting-started', title: 'ðŸš€ Getting Started', icon: 'ðŸš€' },
+    { id: 'projects', title: 'ðŸ“ Projects', icon: 'ðŸ“' },
+    { id: 'bugs', title: 'ðŸ› Bug Management', icon: 'ðŸ›' },
+    { id: 'fields', title: 'ðŸ“ Field Reference', icon: 'ðŸ“' },
+    { id: 'workflow', title: 'ðŸ”„ Workflow', icon: 'ðŸ”„' },
+    { id: 'tips', title: 'ðŸ’¡ Tips & Best Practices', icon: 'ðŸ’¡' },
+    { id: 'shortcuts', title: 'âŒ¨ï¸ Keyboard Shortcuts', icon: 'âŒ¨ï¸' },
+    { id: 'faq', title: 'â“ FAQ', icon: 'â“' },
   ];
 
   const scrollToSection = (sectionId) => {
@@ -27,7 +27,7 @@ function HelpManual() {
       <div className="help-header">
         <div className="help-header-content">
           <h1>
-            <span className="help-logo">📖</span>
+            <span className="help-logo">ðŸ“–</span>
             BugTracker User Manual
           </h1>
           <p>Everything you need to know to track and manage bugs effectively</p>
@@ -36,7 +36,7 @@ function HelpManual() {
           <div className="help-search">
             <input
               type="text"
-              placeholder="🔍 Search the manual..."
+              placeholder="ðŸ” Search the manual..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="help-search-input"
@@ -62,7 +62,7 @@ function HelpManual() {
           
           <div className="help-sidebar-footer">
             <Link to="/" className="btn btn-secondary btn-sm">
-              ← Back to Dashboard
+              &#8592; Back to Dashboard
             </Link>
           </div>
         </nav>
@@ -73,7 +73,7 @@ function HelpManual() {
           {/* Getting Started */}
           <section id="getting-started" className="help-section">
             <div className="section-header gradient-blue">
-              <h2>🚀 Getting Started</h2>
+              <h2>ðŸš€ Getting Started</h2>
               <p>Welcome to BugTracker! Let's get you up and running.</p>
             </div>
             
@@ -84,7 +84,7 @@ function HelpManual() {
 
             <div className="help-grid">
               <div className="help-card highlight-card purple">
-                <div className="card-icon">👤</div>
+                <div className="card-icon">ðŸ‘¤</div>
                 <h4>For Team Members</h4>
                 <ul>
                   <li>View and filter bugs assigned to you</li>
@@ -95,7 +95,7 @@ function HelpManual() {
               </div>
               
               <div className="help-card highlight-card green">
-                <div className="card-icon">👑</div>
+                <div className="card-icon">ðŸ‘‘</div>
                 <h4>For Administrators</h4>
                 <ul>
                   <li>Create and manage projects</li>
@@ -132,7 +132,7 @@ function HelpManual() {
           {/* Projects */}
           <section id="projects" className="help-section">
             <div className="section-header gradient-purple">
-              <h2>📁 Projects</h2>
+              <h2>ðŸ“ Projects</h2>
               <p>Organize your bugs by project for better management.</p>
             </div>
 
@@ -191,7 +191,7 @@ function HelpManual() {
             </div>
 
             <div className="help-card tip-card">
-              <div className="tip-icon">💡</div>
+              <div className="tip-icon">ðŸ’¡</div>
               <div className="tip-content">
                 <h4>Pro Tip: Project Key</h4>
                 <p>Choose a memorable project key! It will be part of every bug ID. Keep it short (2-4 characters) and meaningful. Examples: "API", "WEB", "IOS", "AND"</p>
@@ -202,7 +202,7 @@ function HelpManual() {
           {/* Bug Management */}
           <section id="bugs" className="help-section">
             <div className="section-header gradient-orange">
-              <h2>🐛 Bug Management</h2>
+              <h2>ðŸ› Bug Management</h2>
               <p>Learn how to create, update, and track bugs effectively.</p>
             </div>
 
@@ -241,7 +241,7 @@ function HelpManual() {
             </div>
 
             <div className="help-card warning-card">
-              <div className="warning-icon">⚠️</div>
+              <div className="warning-icon">âš ï¸</div>
               <div className="warning-content">
                 <h4>Writing Good Bug Reports</h4>
                 <p>A well-written bug report saves time for everyone. Always include:</p>
@@ -262,19 +262,19 @@ function HelpManual() {
                   <span className="status-name">Open</span>
                   <span className="status-desc">Newly created, awaiting assignment</span>
                 </div>
-                <div className="status-arrow">→</div>
+                <div className="status-arrow">&#8594;</div>
                 <div className="status-item in-progress">
                   <span className="status-dot"></span>
                   <span className="status-name">In Progress</span>
                   <span className="status-desc">Being actively worked on</span>
                 </div>
-                <div className="status-arrow">→</div>
+                <div className="status-arrow">&#8594;</div>
                 <div className="status-item resolved">
                   <span className="status-dot"></span>
                   <span className="status-name">Resolved</span>
                   <span className="status-desc">Fix completed, awaiting verification</span>
                 </div>
-                <div className="status-arrow">→</div>
+                <div className="status-arrow">&#8594;</div>
                 <div className="status-item closed">
                   <span className="status-dot"></span>
                   <span className="status-name">Closed</span>
@@ -294,7 +294,7 @@ function HelpManual() {
           {/* Field Reference */}
           <section id="fields" className="help-section">
             <div className="section-header gradient-green">
-              <h2>📝 Field Reference</h2>
+              <h2>ðŸ“ Field Reference</h2>
               <p>Detailed explanation of every bug field.</p>
             </div>
 
@@ -332,7 +332,7 @@ function HelpManual() {
               <h3>Classification Fields</h3>
               <div className="classification-grid">
                 <div className="classification-item">
-                  <h4>🔴 Severity</h4>
+                  <h4>ðŸ”´ Severity</h4>
                   <p>How badly the bug affects the system</p>
                   <div className="severity-levels">
                     <div className="level critical">
@@ -355,7 +355,7 @@ function HelpManual() {
                 </div>
 
                 <div className="classification-item">
-                  <h4>🎯 Priority</h4>
+                  <h4>ðŸŽ¯ Priority</h4>
                   <p>How urgently the bug needs to be fixed</p>
                   <div className="severity-levels">
                     <div className="level critical">
@@ -484,7 +484,7 @@ function HelpManual() {
           {/* Workflow */}
           <section id="workflow" className="help-section">
             <div className="section-header gradient-teal">
-              <h2>🔄 Workflow</h2>
+              <h2>ðŸ”„ Workflow</h2>
               <p>Recommended workflows for different roles.</p>
             </div>
 
@@ -492,25 +492,25 @@ function HelpManual() {
               <h3>Reporter Workflow</h3>
               <div className="workflow-diagram">
                 <div className="workflow-step">
-                  <div className="step-icon">🔍</div>
+                  <div className="step-icon">ðŸ”</div>
                   <div className="step-title">1. Discover Bug</div>
                   <div className="step-desc">Find and verify the issue</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">📝</div>
+                  <div className="step-icon">ðŸ“</div>
                   <div className="step-title">2. Create Report</div>
                   <div className="step-desc">File detailed bug report</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">📎</div>
+                  <div className="step-icon">ðŸ“Ž</div>
                   <div className="step-title">3. Attach Evidence</div>
                   <div className="step-desc">Add screenshots, logs</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">👀</div>
+                  <div className="step-icon">ðŸ‘€</div>
                   <div className="step-title">4. Monitor</div>
                   <div className="step-desc">Track progress, answer questions</div>
                 </div>
@@ -521,25 +521,25 @@ function HelpManual() {
               <h3>Developer Workflow</h3>
               <div className="workflow-diagram">
                 <div className="workflow-step">
-                  <div className="step-icon">📋</div>
+                  <div className="step-icon">ðŸ“‹</div>
                   <div className="step-title">1. Review Bug</div>
                   <div className="step-desc">Understand the issue</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">🔧</div>
+                  <div className="step-icon">ðŸ”§</div>
                   <div className="step-title">2. Set In Progress</div>
                   <div className="step-desc">Start working on fix</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">💻</div>
+                  <div className="step-icon">ðŸ’»</div>
                   <div className="step-title">3. Implement Fix</div>
                   <div className="step-desc">Code and test locally</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">✅</div>
+                  <div className="step-icon">âœ…</div>
                   <div className="step-title">4. Mark Resolved</div>
                   <div className="step-desc">Ready for QA verification</div>
                 </div>
@@ -550,25 +550,25 @@ function HelpManual() {
               <h3>QA Workflow</h3>
               <div className="workflow-diagram">
                 <div className="workflow-step">
-                  <div className="step-icon">📥</div>
+                  <div className="step-icon">ðŸ“¥</div>
                   <div className="step-title">1. Pick Up Bug</div>
                   <div className="step-desc">Select resolved bug to verify</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">🧪</div>
+                  <div className="step-icon">ðŸ§ª</div>
                   <div className="step-title">2. Test Fix</div>
                   <div className="step-desc">Set QA Status: Testing</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">📊</div>
+                  <div className="step-icon">ðŸ“Š</div>
                   <div className="step-title">3. Record Result</div>
                   <div className="step-desc">Passed or Failed</div>
                 </div>
-                <div className="workflow-arrow">→</div>
+                <div className="workflow-arrow">&#8594;</div>
                 <div className="workflow-step">
-                  <div className="step-icon">🏁</div>
+                  <div className="step-icon">ðŸ</div>
                   <div className="step-title">4. Close or Reopen</div>
                   <div className="step-desc">Based on test result</div>
                 </div>
@@ -579,7 +579,7 @@ function HelpManual() {
           {/* Tips */}
           <section id="tips" className="help-section">
             <div className="section-header gradient-pink">
-              <h2>💡 Tips & Best Practices</h2>
+              <h2>ðŸ’¡ Tips & Best Practices</h2>
               <p>Get the most out of BugTracker.</p>
             </div>
 
@@ -625,7 +625,7 @@ function HelpManual() {
           {/* Keyboard Shortcuts */}
           <section id="shortcuts" className="help-section">
             <div className="section-header gradient-indigo">
-              <h2>⌨️ Keyboard Shortcuts</h2>
+              <h2>âŒ¨ï¸ Keyboard Shortcuts</h2>
               <p>Work faster with keyboard shortcuts.</p>
             </div>
 
@@ -687,7 +687,7 @@ function HelpManual() {
           {/* FAQ */}
           <section id="faq" className="help-section">
             <div className="section-header gradient-amber">
-              <h2>❓ Frequently Asked Questions</h2>
+              <h2>â“ Frequently Asked Questions</h2>
               <p>Quick answers to common questions.</p>
             </div>
 
@@ -695,7 +695,7 @@ function HelpManual() {
               <details className="faq-item">
                 <summary>How do I reset my password?</summary>
                 <div className="faq-answer">
-                  Click the 🔒 icon next to your username in the navigation bar to access the Change Password page. Enter your current password and your new password to update it.
+                  Click the ðŸ”’ icon next to your username in the navigation bar to access the Change Password page. Enter your current password and your new password to update it.
                 </div>
               </details>
 
@@ -745,8 +745,8 @@ function HelpManual() {
 
           {/* Footer */}
           <div className="help-footer">
-            <p>📧 Need more help? Contact your system administrator.</p>
-            <p className="version-info">BugTracker v2.0 • Manual v1.0</p>
+            <p>ðŸ“§ Need more help? Contact your system administrator.</p>
+            <p className="version-info">BugTracker v2.0 â€¢ Manual v1.0</p>
           </div>
 
         </main>

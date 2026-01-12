@@ -14,6 +14,7 @@
 
 const express = require('express');
 const storage = require('../storage');
+const { query } = require('../storage/mysql/db');
 const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
@@ -21,6 +22,17 @@ const router = express.Router();
 // Helper function to check if user has elevated privileges
 const hasElevatedPrivileges = (user) => {
   return user && (user.role === 'godmode' || user.role === 'admin');
+};
+
+// Helper function to get activity log with IDs (for deletion support)
+const getActivityLogWithIds = async (bugId) => {
+  return await query(
+    `SELECT id, user, action, message, created_at as timestamp 
+     FROM bug_activity 
+     WHERE bug_id = ? 
+     ORDER BY created_at ASC`,
+    [bugId]
+  );
 };
 
 /**
@@ -140,6 +152,14 @@ router.get('/:projectKey/:bugId', authMiddleware, async (req, res) => {
     if (!canUserViewBug(bug, req.user.username, isPrivileged)) {
       return res.status(403).json({ error: 'You do not have permission to view this bug' });
     }
+    
+    // For privileged users, include activity IDs for deletion support
+    if (isPrivileged) {
+      bug.activityLog = await getActivityLogWithIds(req.params.bugId);
+    }
+    
+    // Include user role in response for frontend permission checks
+    bug.userRole = req.user.role;
     
     res.json(bug);
   } catch (error) {
@@ -281,6 +301,33 @@ router.delete('/:projectKey/:bugId', authMiddleware, async (req, res) => {
     }
     res.json({ message: 'Bug deleted' });
   } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Delete comment (admin and godmode only)
+router.delete('/:projectKey/:bugId/comment/:commentId', authMiddleware, async (req, res) => {
+  try {
+    // Only privileged users can delete comments
+    if (!hasElevatedPrivileges(req.user)) {
+      return res.status(403).json({ error: 'Only admins and super users can delete comments' });
+    }
+    
+    // Delete comment from bug_activity table
+    const result = await query(
+      'DELETE FROM bug_activity WHERE id = ? AND bug_id = ?',
+      [req.params.commentId, req.params.bugId]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    
+    // Return updated bug with activity log
+    const updatedBug = await storage.getBugById(req.params.bugId);
+    res.json(updatedBug);
+  } catch (error) {
+    console.error('Error deleting comment:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

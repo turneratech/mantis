@@ -28,7 +28,10 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://3.128.196.248'],
+  credentials: true
+}));
 
 // FIX: Use JSON body parser for all routes EXCEPT the GitHub webhook
 // The webhook needs the raw body to verify the HMAC signature

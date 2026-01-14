@@ -15,6 +15,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ChangePassword from './components/ChangePassword';
 import ReportGenerator from './components/ReportGenerator';
+import EmailConfig from './components/EmailConfig';
 
 
 // For subdirectory deployment
@@ -180,6 +181,12 @@ function App() {
                 </ProtectedRoute>
               } />
 
+	      {/*Email Config only for Admin or Godmode   */}
+              <Route path="/email-config" element={
+                <ProtectedRoute adminOnly>
+                  <EmailConfig />
+                </ProtectedRoute>
+              } />
             </Routes>
           </main>
           {user && <Footer />}

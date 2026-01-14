@@ -38,7 +38,7 @@ CREATE TABLE `bug_activity` (
   KEY `idx_user` (`user`),
   KEY `idx_created_at` (`created_at`),
   KEY `idx_bug_created` (`bug_id`,`created_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=137 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=186 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -112,7 +112,58 @@ CREATE TABLE `bugs` (
   KEY `idx_assignee_status` (`assignee`,`status`),
   KEY `idx_project_severity` (`project_id`,`severity`),
   CONSTRAINT `bugs_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=91 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=104 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `email_config`
+--
+
+DROP TABLE IF EXISTS `email_config`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `email_config` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `config_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'Default',
+  `smtp_host` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `smtp_port` int NOT NULL DEFAULT '587',
+  `smtp_secure` tinyint(1) DEFAULT '0',
+  `smtp_user` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `smtp_password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `from_email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `from_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'BugTracker Reports',
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `created_by` (`created_by`),
+  CONSTRAINT `email_config_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `email_log`
+--
+
+DROP TABLE IF EXISTS `email_log`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `email_log` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `scheduled_report_id` int DEFAULT NULL,
+  `recipients` text COLLATE utf8mb4_unicode_ci,
+  `subject` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` enum('pending','sent','failed') COLLATE utf8mb4_unicode_ci DEFAULT 'pending',
+  `error_message` text COLLATE utf8mb4_unicode_ci,
+  `sent_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `scheduled_report_id` (`scheduled_report_id`),
+  KEY `idx_email_log_status` (`status`),
+  KEY `idx_email_log_created` (`created_at`),
+  CONSTRAINT `email_log_ibfk_1` FOREIGN KEY (`scheduled_report_id`) REFERENCES `scheduled_reports` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -166,6 +217,58 @@ CREATE TABLE `projects` (
   KEY `idx_status` (`status`),
   KEY `idx_created_by` (`created_by`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `report_recipients`
+--
+
+DROP TABLE IF EXISTS `report_recipients`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `report_recipients` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `scheduled_report_id` int NOT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_recipient` (`scheduled_report_id`,`email`),
+  CONSTRAINT `report_recipients_ibfk_1` FOREIGN KEY (`scheduled_report_id`) REFERENCES `scheduled_reports` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `scheduled_reports`
+--
+
+DROP TABLE IF EXISTS `scheduled_reports`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `scheduled_reports` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `report_name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `report_type` enum('weekly','monthly') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'weekly',
+  `frequency` enum('daily','weekly','biweekly','monthly') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'weekly',
+  `day_of_week` tinyint DEFAULT '1',
+  `day_of_month` tinyint DEFAULT '1',
+  `send_time` time DEFAULT '09:00:00',
+  `timezone` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT 'UTC',
+  `projects` json DEFAULT NULL,
+  `include_ai_insights` tinyint(1) DEFAULT '1',
+  `is_active` tinyint(1) DEFAULT '1',
+  `last_sent_at` timestamp NULL DEFAULT NULL,
+  `next_scheduled_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `created_by` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `created_by` (`created_by`),
+  KEY `idx_scheduled_reports_active` (`is_active`),
+  KEY `idx_scheduled_reports_next` (`next_scheduled_at`),
+  CONSTRAINT `scheduled_reports_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -310,4 +413,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-08  6:29:44
+-- Dump completed on 2026-01-13 13:38:27

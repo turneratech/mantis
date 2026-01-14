@@ -13,42 +13,11 @@ const { v4: uuidv4 } = require('uuid');
 // ============================================
 // AUTH MIDDLEWARE
 // ============================================
-let authMiddleware;
+// ============================================
+// AUTH MIDDLEWARE
+// ============================================
+const { authMiddleware } = require('../middleware/auth');
 
-try {
-  const auth = require('./auth');
-  authMiddleware = auth.authMiddleware;
-  console.log('[Attachments] Loaded auth from ./auth');
-} catch (e) {
-  try {
-    const auth = require('../auth');
-    authMiddleware = auth.authMiddleware;
-    console.log('[Attachments] Loaded auth from ../auth');
-  } catch (e2) {
-    console.log('[Attachments] Could not find auth module, using fallback');
-  }
-}
-
-// Fallback auth middleware
-if (!authMiddleware) {
-  console.log('[Attachments] Using fallback JWT auth');
-  const jwt = require('jsonwebtoken');
-  const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-  
-  authMiddleware = (req, res, next) => {
-    const token = req.header('Authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-    try {
-      const decoded = jwt.verify(token, JWT_SECRET);
-      req.user = decoded;
-      next();
-    } catch (error) {
-      res.status(401).json({ error: 'Invalid token' });
-    }
-  };
-}
 
 // ============================================
 // DIRECT MYSQL UPDATE (bypasses storage module issues)

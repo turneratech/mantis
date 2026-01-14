@@ -9,6 +9,8 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
+const emailRoutes = require('./routes/email');
+const emailService = require('./services/emailService');
 
 // Load environment variables
 dotenv.config();
@@ -54,6 +56,17 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/attachments', attachmentsRoutes);  // NEW
 app.use('/api/webhooks', githubWebhook);
+app.use('/api/email', emailRoutes);
+
+async function initializeEmailService() {
+  try {
+    await emailService.initializeTransporter();
+    await emailService.loadScheduledReports();
+    console.log('[Server] Email service initialized');
+  } catch (error) {
+    console.error('[Server] Email service error:', error.message);
+  }
+}
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
@@ -119,6 +132,9 @@ const startServer = async () => {
       console.log('Default credentials: admin / admin123');
       console.log('');
     });
+    
+    initializeEmailService()
+
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

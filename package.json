@@ -24,6 +24,7 @@
     "mysql2": "^3.6.5",
     "openai": "^6.16.0",
     "pdfkit": "^0.17.2",
+    "tree-node-cli": "^1.6.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

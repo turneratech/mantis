@@ -27,17 +27,18 @@ router.get('/config', authMiddleware, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
+    // Use SELECT * to be backward compatible with databases that don't have logo columns yet
     const configs = await query(`
-      SELECT id, config_name, smtp_host, smtp_port, smtp_secure, 
-             smtp_user, from_email, from_name, is_active, created_at, updated_at
-      FROM email_config 
+      SELECT * FROM email_config 
       ORDER BY is_active DESC, updated_at DESC
     `);
 
-    // Mask passwords
+    // Mask passwords and ensure logo fields have defaults
     const maskedConfigs = (configs || []).map(c => ({
       ...c,
-      smtp_password: '********'
+      smtp_password: '********',
+      logo_url: c.logo_url || null,
+      company_name: c.company_name || 'BugTracker'
     }));
 
     res.json(maskedConfigs);
@@ -45,6 +46,41 @@ router.get('/config', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error fetching email config:', error);
     res.status(500).json({ error: 'Failed to fetch email configuration' });
+  }
+});
+
+// Update logo settings only (requires migration to be run first)
+router.patch('/config/logo', authMiddleware, async (req, res) => {
+  try {
+    if (!hasElevatedPrivileges(req.user)) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { logo_url, company_name } = req.body;
+
+    try {
+      await query(`
+        UPDATE email_config 
+        SET logo_url = ?, company_name = ?
+        WHERE is_active = TRUE
+      `, [logo_url || null, company_name || 'BugTracker']);
+
+      res.json({ success: true, message: 'Logo settings updated' });
+    } catch (updateErr) {
+      // Columns don't exist yet
+      if (updateErr.message.includes('Unknown column')) {
+        res.status(400).json({ 
+          error: 'Logo columns not found. Please run the database migration first.',
+          migration: "ALTER TABLE email_config ADD COLUMN logo_url VARCHAR(500) DEFAULT NULL, ADD COLUMN company_name VARCHAR(100) DEFAULT 'BugTracker';"
+        });
+      } else {
+        throw updateErr;
+      }
+    }
+
+  } catch (error) {
+    console.error('Error updating logo settings:', error);
+    res.status(500).json({ error: 'Failed to update logo settings' });
   }
 });
 
@@ -57,7 +93,8 @@ router.post('/config', authMiddleware, async (req, res) => {
 
     const { 
       id, config_name, smtp_host, smtp_port, smtp_secure, 
-      smtp_user, smtp_password, from_email, from_name, is_active 
+      smtp_user, smtp_password, from_email, from_name, is_active,
+      logo_url, company_name
     } = req.body;
 
     // Validate required fields
@@ -66,7 +103,7 @@ router.post('/config', authMiddleware, async (req, res) => {
     }
 
     if (id) {
-      // Update existing
+      // Update existing - basic fields only (backward compatible)
       let updateQuery = `
         UPDATE email_config SET 
           config_name = ?, smtp_host = ?, smtp_port = ?, smtp_secure = ?,
@@ -85,6 +122,16 @@ router.post('/config', authMiddleware, async (req, res) => {
 
       await query(updateQuery, params);
 
+      // Try to update logo fields if they exist (ignore error if columns don't exist)
+      if (logo_url !== undefined || company_name !== undefined) {
+        try {
+          await query(`UPDATE email_config SET logo_url = ?, company_name = ? WHERE id = ?`, 
+            [logo_url || null, company_name || 'BugTracker', id]);
+        } catch (logoErr) {
+          console.log('[Email Config] Logo columns not yet added to database - skipping logo update');
+        }
+      }
+
       // If setting as active, deactivate others
       if (is_active) {
         await query('UPDATE email_config SET is_active = FALSE WHERE id != ?', [id]);
@@ -101,11 +148,21 @@ router.post('/config', authMiddleware, async (req, res) => {
         await query('UPDATE email_config SET is_active = FALSE');
       }
 
-      await query(`
-        INSERT INTO email_config 
-        (config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, created_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `, [config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, req.user.id]);
+      // Try insert with logo columns first, fall back to basic insert
+      try {
+        await query(`
+          INSERT INTO email_config 
+          (config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, created_by, logo_url, company_name)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, req.user.id, logo_url || null, company_name || 'BugTracker']);
+      } catch (insertErr) {
+        // Fall back to basic insert without logo columns
+        await query(`
+          INSERT INTO email_config 
+          (config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, req.user.id]);
+      }
     }
 
     // Reinitialize email service
@@ -200,13 +257,9 @@ router.get('/schedules', authMiddleware, async (req, res) => {
 
     const reports = await query(`
       SELECT sr.*, 
-             u.username as created_by_name,
-             COUNT(rr.id) as recipient_count,
-             GROUP_CONCAT(rr.email) as recipients
+             u.username as created_by_name
       FROM scheduled_reports sr
       LEFT JOIN users u ON sr.created_by = u.id
-      LEFT JOIN report_recipients rr ON sr.id = rr.scheduled_report_id AND rr.is_active = TRUE
-      GROUP BY sr.id
       ORDER BY sr.created_at DESC
     `);
 
@@ -216,11 +269,18 @@ router.get('/schedules', authMiddleware, async (req, res) => {
       try { return JSON.parse(str); } catch(e) { return []; }
     };
 
-    // Parse projects JSON
-    const parsedReports = (reports || []).map(r => ({
-      ...r,
-      projects: safeParseJSON(r.projects),
-      recipients: r.recipients ? r.recipients.split(',') : []
+    // Fetch recipients for each report
+    const parsedReports = await Promise.all((reports || []).map(async (r) => {
+      const recipients = await query(
+        'SELECT id, email, name, is_active FROM report_recipients WHERE scheduled_report_id = ? ORDER BY created_at',
+        [r.id]
+      );
+      return {
+        ...r,
+        projects: safeParseJSON(r.projects),
+        recipients: recipients || [],
+        recipient_count: (recipients || []).filter(rec => rec.is_active).length
+      };
     }));
 
     res.json(parsedReports);
@@ -245,13 +305,19 @@ router.get('/schedules/:id', authMiddleware, async (req, res) => {
     }
 
     const recipients = await query(
-      'SELECT * FROM report_recipients WHERE scheduled_report_id = ? ORDER BY created_at',
+      'SELECT id, email, name, is_active FROM report_recipients WHERE scheduled_report_id = ? ORDER BY created_at',
       [req.params.id]
     );
 
+    // Safe JSON parser
+    const safeParseJSON = (str) => {
+      if (!str) return [];
+      try { return JSON.parse(str); } catch(e) { return []; }
+    };
+
     const report = {
       ...reports[0],
-      projects: reports[0].projects ? JSON.parse(reports[0].projects) : [],
+      projects: safeParseJSON(reports[0].projects),
       recipients: recipients || []
     };
 

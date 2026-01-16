@@ -99,7 +99,7 @@ class EmailService {
     }
 
     const configs = await query(
-      'SELECT from_email, from_name FROM email_config WHERE is_active = TRUE LIMIT 1'
+      'SELECT from_email, from_name, logo_url, company_name FROM email_config WHERE is_active = TRUE LIMIT 1'
     );
     const config = configs[0];
 
@@ -113,7 +113,10 @@ class EmailService {
 
     const reportData = await this.generateFullReportData(testReport);
     const aiInsights = await this.generateAIInsights(reportData, 'monthly');
-    const htmlContent = this.generateFullReportEmailHTML(testReport, reportData, aiInsights);
+    
+    // Pass email config for logo and company name
+    const emailConfig = { logo_url: config.logo_url, company_name: config.company_name };
+    const htmlContent = this.generateFullReportEmailHTML(testReport, reportData, aiInsights, emailConfig);
 
     const subject = `[TEST] Monthly Bug Report - ${new Date().toLocaleDateString()}`;
 
@@ -261,8 +264,12 @@ class EmailService {
         aiInsights = await this.generateAIInsights(reportData, report.report_type);
       }
       
+      // Fetch email config for logo and company name
+      const emailConfigs = await query('SELECT logo_url, company_name FROM email_config WHERE is_active = TRUE LIMIT 1');
+      const emailConfig = emailConfigs?.[0] || {};
+      
       // Generate full HTML email
-      const htmlContent = this.generateFullReportEmailHTML(report, reportData, aiInsights);
+      const htmlContent = this.generateFullReportEmailHTML(report, reportData, aiInsights, emailConfig);
 
       const subject = `[${report.report_type.charAt(0).toUpperCase() + report.report_type.slice(1)}] ${report.report_name} - ${new Date().toLocaleDateString()}`;
       
@@ -286,7 +293,25 @@ class EmailService {
   // ==================== COMPREHENSIVE REPORT DATA ====================
 
   async generateFullReportData(report) {
-    const projects = report.projects ? JSON.parse(report.projects) : [];
+	const safeParseJSON = (val, fallback = []) => {
+	  if (val === null || val === undefined) return fallback;  
+	  if (Array.isArray(val)) return val;  
+	  if (typeof val !== 'string') return fallback;  
+	  const trimmed = val.trim();  
+	  if (!trimmed) return fallback;  
+	    
+	  try {  
+	    const parsed = JSON.parse(trimmed);  
+	    return Array.isArray(parsed) ? parsed : fallback;  
+	  } catch (e) {  
+	    console.warn(  
+	  	`[EmailService] Invalid projects JSON for reportId=${report?.id}: len=${trimmed.length}. Falling back to [].`  
+	    );  
+	    return fallback;  
+	  }
+    };  
+	  
+    const projects = safeParseJSON(report.projects);
     const projectFilter = projects.length > 0 ? projects : null;
 
     // Calculate date range
@@ -701,26 +726,171 @@ Write PM commentary as JSON:
     };
   }
 
+  // ==================== QUICKCHART.IO HELPERS ====================
+  
+  // Generate chart image URL using QuickChart.io
+  generateChartUrl(config) {
+    const chartConfig = encodeURIComponent(JSON.stringify(config));
+    return `https://quickchart.io/chart?c=${chartConfig}&w=400&h=250&bkg=white`;
+  }
+
+  // Generate pie chart for status distribution
+  generateStatusPieChart(currentStatus) {
+    const config = {
+      type: 'doughnut',
+      data: {
+        labels: ['Open', 'In Progress', 'Resolved', 'Closed'],
+        datasets: [{
+          data: [
+            Number(currentStatus.open) || 0,
+            Number(currentStatus.inProgress) || 0,
+            Number(currentStatus.resolved) || 0,
+            Number(currentStatus.closed) || 0
+          ],
+          backgroundColor: ['#3b82f6', '#8b5cf6', '#22c55e', '#6b7280']
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: 'right' },
+          datalabels: { color: '#fff', font: { weight: 'bold' } }
+        }
+      }
+    };
+    return this.generateChartUrl(config);
+  }
+
+  // Generate bar chart for severity distribution
+  generateSeverityBarChart(severityDistribution) {
+    const config = {
+      type: 'bar',
+      data: {
+        labels: severityDistribution.map(s => s.severity),
+        datasets: [{
+          label: 'Count',
+          data: severityDistribution.map(s => Number(s.count) || 0),
+          backgroundColor: severityDistribution.map(s => {
+            const colors = { Critical: '#dc2626', High: '#f97316', Medium: '#eab308', Low: '#22c55e' };
+            return colors[s.severity] || '#6b7280';
+          })
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true } }
+      }
+    };
+    return this.generateChartUrl(config);
+  }
+
+  // Generate bar chart for priority distribution
+  generatePriorityBarChart(priorityDistribution) {
+    const config = {
+      type: 'bar',
+      data: {
+        labels: priorityDistribution.map(p => p.priority),
+        datasets: [{
+          label: 'Count',
+          data: priorityDistribution.map(p => Number(p.count) || 0),
+          backgroundColor: priorityDistribution.map(p => {
+            const colors = { Critical: '#dc2626', High: '#f97316', Medium: '#eab308', Low: '#22c55e', Urgent: '#dc2626' };
+            return colors[p.priority] || '#6b7280';
+          })
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true } }
+      }
+    };
+    return this.generateChartUrl(config);
+  }
+
+  // Generate bar chart for team performance
+  generateTeamBarChart(teamPerformance) {
+    const topTeam = teamPerformance.slice(0, 8);
+    const config = {
+      type: 'bar',
+      data: {
+        labels: topTeam.map(t => t.assignee?.substring(0, 12) || 'Unknown'),
+        datasets: [
+          {
+            label: 'Resolved',
+            data: topTeam.map(t => Number(t.resolved) || 0),
+            backgroundColor: '#22c55e'
+          },
+          {
+            label: 'Open/In Progress',
+            data: topTeam.map(t => Number(t.openInProgress) || 0),
+            backgroundColor: '#f97316'
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        plugins: { legend: { position: 'top' } },
+        scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } }
+      }
+    };
+    return this.generateChartUrl(config);
+  }
+
+  // Generate pie chart for bug aging
+  generateAgingPieChart(bugAging) {
+    const config = {
+      type: 'pie',
+      data: {
+        labels: bugAging.map(a => a.ageGroup),
+        datasets: [{
+          data: bugAging.map(a => Number(a.count) || 0),
+          backgroundColor: ['#22c55e', '#eab308', '#f97316', '#dc2626']
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: 'right' },
+          datalabels: { color: '#fff', font: { weight: 'bold' } }
+        }
+      }
+    };
+    return this.generateChartUrl(config);
+  }
+
   // ==================== FULL REPORT EMAIL HTML ====================
 
-  generateFullReportEmailHTML(report, data, aiInsights) {
+  generateFullReportEmailHTML(report, data, aiInsights, emailConfig = {}) {
     const { dateRange, currentStatus, periodSummary, comparison, severityDistribution,
             priorityDistribution, projectHealth, teamPerformance, topContributors,
             bugAging, criticalBugs, activitySummary } = data;
 
     const reportTypeLabel = report.report_type.charAt(0).toUpperCase() + report.report_type.slice(1);
+    
+    // Get logo and company name from config
+    const logoUrl = emailConfig.logo_url || null;
+    const companyName = emailConfig.company_name || 'BugTracker';
+
+    // Generate chart URLs
+    const statusChartUrl = this.generateStatusPieChart(currentStatus);
+    const severityChartUrl = this.generateSeverityBarChart(severityDistribution);
+    const priorityChartUrl = this.generatePriorityBarChart(priorityDistribution);
+    const teamChartUrl = this.generateTeamBarChart(teamPerformance);
+    const agingChartUrl = this.generateAgingPieChart(bugAging);
 
     const changeIndicator = (value, inverse = false) => {
-      if (value === 0) return '';
-      const isPositive = inverse ? value < 0 : value > 0;
-      const arrow = value > 0 ? '&#9650;' : '&#9660;';
+      const numValue = Number(value) || 0;
+      if (numValue === 0) return '';
+      const isPositive = inverse ? numValue < 0 : numValue > 0;
+      const arrow = numValue > 0 ? '&#9650;' : '&#9660;';
       const color = isPositive ? '#10b981' : '#ef4444';
-      return `<span style="color: ${color}; font-size: 12px; margin-left: 4px;">${arrow} ${Math.abs(value).toFixed(0)}%</span>`;
+      return `<span style="color: ${color}; font-size: 12px; margin-left: 4px;">${arrow} ${Math.abs(numValue).toFixed(0)}%</span>`;
     };
 
     const healthStatus = (score) => {
-      if (score >= 70) return { text: '&#10003; Healthy', color: '#10b981' };
-      if (score >= 40) return { text: '&#9888; Attention', color: '#f59e0b' };
+      const numScore = Number(score) || 0;
+      if (numScore >= 70) return { text: '&#10003; Healthy', color: '#10b981' };
+      if (numScore >= 40) return { text: '&#9888; Attention', color: '#f59e0b' };
       return { text: '&#9679; Critical', color: '#ef4444' };
     };
 
@@ -737,17 +907,24 @@ Write PM commentary as JSON:
       const pct = Math.round((Number(s.count) / totalOpenBugs) * 100);
       return `
       <tr>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; width: 100px;">
-          <span style="display: inline-block; width: 12px; height: 12px; background: ${severityColor(s.severity)}; border-radius: 3px; margin-right: 8px;"></span>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; width: 90px;">
+          <span style="display: inline-block; width: 12px; height: 12px; background: ${severityColor(s.severity)}; border-radius: 3px; margin-right: 6px; vertical-align: middle;"></span>
           ${s.severity}
         </td>
         <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb;">
-          <div style="display: flex; align-items: center;">
-            <div style="flex: 1; background: #f3f4f6; border-radius: 4px; height: 20px; margin-right: 10px;">
-              <div style="width: ${pct}%; background: ${severityColor(s.severity)}; height: 100%; border-radius: 4px;"></div>
-            </div>
-            <span style="font-weight: 600; min-width: 50px; text-align: right;">${s.count} (${pct}%)</span>
-          </div>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width: 80%;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background: #f3f4f6; border-radius: 4px;">
+                  <tr>
+                    <td style="width: ${pct}%; background: ${severityColor(s.severity)}; height: 18px; border-radius: 4px;"></td>
+                    <td style="width: ${100-pct}%;"></td>
+                  </tr>
+                </table>
+              </td>
+              <td style="width: 20%; text-align: right; font-weight: 600; padding-left: 10px; white-space: nowrap;">${s.count} (${pct}%)</td>
+            </tr>
+          </table>
         </td>
       </tr>
     `}).join('') : '<tr><td colspan="2" style="padding: 12px; text-align: center; color: #9ca3af;">No open bugs</td></tr>';
@@ -758,17 +935,24 @@ Write PM commentary as JSON:
       const color = priorityColors[p.priority] || '#6b7280';
       return `
       <tr>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; width: 100px;">
-          <span style="display: inline-block; width: 12px; height: 12px; background: ${color}; border-radius: 3px; margin-right: 8px;"></span>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; width: 90px;">
+          <span style="display: inline-block; width: 12px; height: 12px; background: ${color}; border-radius: 3px; margin-right: 6px; vertical-align: middle;"></span>
           ${p.priority}
         </td>
         <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb;">
-          <div style="display: flex; align-items: center;">
-            <div style="flex: 1; background: #f3f4f6; border-radius: 4px; height: 20px; margin-right: 10px;">
-              <div style="width: ${pct}%; background: ${color}; height: 100%; border-radius: 4px;"></div>
-            </div>
-            <span style="font-weight: 600; min-width: 50px; text-align: right;">${p.count} (${pct}%)</span>
-          </div>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width: 80%;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background: #f3f4f6; border-radius: 4px;">
+                  <tr>
+                    <td style="width: ${pct}%; background: ${color}; height: 18px; border-radius: 4px;"></td>
+                    <td style="width: ${100-pct}%;"></td>
+                  </tr>
+                </table>
+              </td>
+              <td style="width: 20%; text-align: right; font-weight: 600; padding-left: 10px; white-space: nowrap;">${p.count} (${pct}%)</td>
+            </tr>
+          </table>
         </td>
       </tr>
     `}).join('') : '<tr><td colspan="2" style="padding: 12px; text-align: center; color: #9ca3af;">No open bugs</td></tr>';
@@ -799,34 +983,70 @@ Write PM commentary as JSON:
         <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${t.openInProgress}</td>
         <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: center; color: #10b981;">${t.resolved}</td>
         <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb;">
-          <div style="display: flex; align-items: center;">
-            <div style="flex: 1; background: #f3f4f6; border-radius: 4px; height: 16px; margin-right: 8px;">
-              <div style="width: ${resRate}%; background: ${rateColor}; height: 100%; border-radius: 4px;"></div>
-            </div>
-            <span style="font-weight: 600; min-width: 35px;">${resRate.toFixed(0)}%</span>
-          </div>
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td style="width: 70%;">
+                <table width="100%" cellpadding="0" cellspacing="0" style="background: #f3f4f6; border-radius: 4px;">
+                  <tr>
+                    <td style="width: ${resRate}%; background: ${rateColor}; height: 14px; border-radius: 4px;"></td>
+                    <td style="width: ${100-resRate}%;"></td>
+                  </tr>
+                </table>
+              </td>
+              <td style="width: 30%; text-align: right; font-weight: 600; padding-left: 8px;">${resRate.toFixed(0)}%</td>
+            </tr>
+          </table>
         </td>
         <td style="padding: 10px 12px; border-bottom: 1px solid #e5e7eb; text-align: center;">${t.avgResolutionDays ? Number(t.avgResolutionDays || 0).toFixed(1) + 'd' : '-'}</td>
       </tr>
     `}).join('') : '<tr><td colspan="6" style="padding: 12px; text-align: center; color: #9ca3af;">No data</td></tr>';
 
     const medals = ['1st', '2nd', '3rd', '4th', '5th'];
-    const contributorsHTML = topContributors.length > 0 ? topContributors.map((c, i) => `
-      <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-        <span style="font-size: 20px; margin-right: 10px;">${medals[i] || ''}</span>
-        <span style="flex: 1; font-weight: 500;">${c.username}</span>
-        <span style="background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 12px; font-weight: 600;">${c.resolved} resolved</span>
-      </div>
-    `).join('') : '<p style="color: #9ca3af; text-align: center;">No contributions this period</p>';
+    const contributorsHTML = topContributors.length > 0 ? `
+      <table width="100%" cellpadding="0" cellspacing="0">
+        ${topContributors.map((c, i) => `
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; width: 40px; font-size: 16px; font-weight: bold; color: ${i === 0 ? '#f59e0b' : i === 1 ? '#9ca3af' : i === 2 ? '#b45309' : '#64748b'};">${medals[i] || ''}</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-weight: 500;">${c.username}</td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+              <span style="background: #dcfce7; color: #166534; padding: 4px 10px; border-radius: 12px; font-weight: 600; font-size: 12px;">${c.resolved} resolved</span>
+            </td>
+          </tr>
+        `).join('')}
+      </table>
+    ` : '<p style="color: #9ca3af; text-align: center;">No contributions this period</p>';
 
     const agingColors = { '< 3 days': '#22c55e', '3-7 days': '#eab308', '7-14 days': '#f97316', '> 14 days': '#dc2626' };
-    const agingHTML = bugAging.length > 0 ? bugAging.map(a => `
-      <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-        <span style="display: inline-block; width: 12px; height: 12px; background: ${agingColors[a.ageGroup] || '#6b7280'}; border-radius: 3px; margin-right: 10px;"></span>
-        <span style="flex: 1;">${a.ageGroup}</span>
-        <span style="font-weight: 600;">${a.count}</span>
-      </div>
-    `).join('') : '<p style="color: #9ca3af; text-align: center;">No open bugs</p>';
+    const totalAgingBugs = bugAging.reduce((sum, a) => sum + Number(a.count), 0) || 1;
+    const agingHTML = bugAging.length > 0 ? `
+      <table width="100%" cellpadding="0" cellspacing="0">
+        ${bugAging.map(a => {
+          const pct = Math.round((Number(a.count) / totalAgingBugs) * 100);
+          return `
+          <tr>
+            <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; width: 90px;">
+              <span style="display: inline-block; width: 12px; height: 12px; background: ${agingColors[a.ageGroup] || '#6b7280'}; border-radius: 3px; margin-right: 8px; vertical-align: middle;"></span>
+              ${a.ageGroup}
+            </td>
+            <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="width: 70%;">
+                    <table width="100%" cellpadding="0" cellspacing="0" style="background: #f3f4f6; border-radius: 4px;">
+                      <tr>
+                        <td style="width: ${pct}%; background: ${agingColors[a.ageGroup] || '#6b7280'}; height: 14px; border-radius: 4px;"></td>
+                        <td style="width: ${100-pct}%;"></td>
+                      </tr>
+                    </table>
+                  </td>
+                  <td style="width: 30%; text-align: right; font-weight: 600; padding-left: 8px;">${a.count}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        `}).join('')}
+      </table>
+    ` : '<p style="color: #9ca3af; text-align: center;">No open bugs</p>';
 
     const criticalBugsHTML = criticalBugs.length > 0 ? `
       <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
@@ -919,10 +1139,11 @@ Write PM commentary as JSON:
       <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f5f9; line-height: 1.5;">
         <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 900px; margin: 0 auto; background: white;">
           
-          <!-- Header -->
+          <!-- Header with Dynamic Logo -->
           <tr>
             <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">&#9679; BugTracker</h1>
+              ${logoUrl ? `<img src="${logoUrl}" alt="${companyName}" style="max-height: 60px; margin-bottom: 15px;">` : ''}
+              <h1 style="color: white; margin: 0; font-size: 28px;">${companyName}</h1>
               <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">${reportTypeLabel} Engineering Report</p>
             </td>
           </tr>
@@ -934,7 +1155,7 @@ Write PM commentary as JSON:
                 <tr>
                   <td><strong style="color: #1e293b; font-size: 16px;">${report.report_name}</strong></td>
                   <td style="text-align: right; color: #64748b; font-size: 14px;">
-                    ${dateRange.startDate} ${dateRange.endDate}
+                    ${dateRange.startDate} &rarr; ${dateRange.endDate}
                   </td>
                 </tr>
               </table>
@@ -976,24 +1197,42 @@ Write PM commentary as JSON:
                   </td>
                 </tr>
               </table>
-              <!-- Visual Status Bar -->
-              <div style="margin-top: 20px;">
-                <div style="font-size: 14px; color: #64748b; margin-bottom: 8px;">Status Distribution</div>
-                <div style="display: flex; height: 24px; border-radius: 6px; overflow: hidden; background: #f3f4f6;">
-                  ${currentStatus.totalBugs > 0 ? `
-                    <div style="width: ${(currentStatus.open / currentStatus.totalBugs) * 100}%; background: #3b82f6;" title="Open: ${currentStatus.open}"></div>
-                    <div style="width: ${(currentStatus.inProgress / currentStatus.totalBugs) * 100}%; background: #8b5cf6;" title="In Progress: ${currentStatus.inProgress}"></div>
-                    <div style="width: ${(currentStatus.resolved / currentStatus.totalBugs) * 100}%; background: #22c55e;" title="Resolved: ${currentStatus.resolved}"></div>
-                    <div style="width: ${(currentStatus.closed / currentStatus.totalBugs) * 100}%; background: #6b7280;" title="Closed: ${currentStatus.closed}"></div>
-                  ` : '<div style="width: 100%; background: #e5e7eb;"></div>'}
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #64748b;">
-                  <span><span style="display: inline-block; width: 10px; height: 10px; background: #3b82f6; border-radius: 2px; margin-right: 4px;"></span>Open</span>
-                  <span><span style="display: inline-block; width: 10px; height: 10px; background: #8b5cf6; border-radius: 2px; margin-right: 4px;"></span>In Progress</span>
-                  <span><span style="display: inline-block; width: 10px; height: 10px; background: #22c55e; border-radius: 2px; margin-right: 4px;"></span>Resolved</span>
-                  <span><span style="display: inline-block; width: 10px; height: 10px; background: #6b7280; border-radius: 2px; margin-right: 4px;"></span>Closed</span>
-                </div>
-              </div>
+              <!-- Visual Status Bar Chart -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 20px;">
+                <tr>
+                  <td>
+                    <div style="font-size: 14px; color: #64748b; margin-bottom: 8px; font-weight: 600;">Status Distribution</div>
+                    <!-- Stacked Bar using table -->
+                    <table width="100%" cellpadding="0" cellspacing="0" style="height: 28px; border-radius: 6px; overflow: hidden;">
+                      <tr>
+                        ${currentStatus.totalBugs > 0 ? `
+                          ${currentStatus.open > 0 ? `<td style="width: ${(currentStatus.open / currentStatus.totalBugs) * 100}%; background: #3b82f6;"></td>` : ''}
+                          ${currentStatus.inProgress > 0 ? `<td style="width: ${(currentStatus.inProgress / currentStatus.totalBugs) * 100}%; background: #8b5cf6;"></td>` : ''}
+                          ${currentStatus.resolved > 0 ? `<td style="width: ${(currentStatus.resolved / currentStatus.totalBugs) * 100}%; background: #22c55e;"></td>` : ''}
+                          ${currentStatus.closed > 0 ? `<td style="width: ${(currentStatus.closed / currentStatus.totalBugs) * 100}%; background: #6b7280;"></td>` : ''}
+                        ` : '<td style="width: 100%; background: #e5e7eb;"></td>'}
+                      </tr>
+                    </table>
+                    <!-- Legend -->
+                    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 8px;">
+                      <tr>
+                        <td style="font-size: 11px; color: #64748b;">
+                          <span style="display: inline-block; width: 10px; height: 10px; background: #3b82f6; border-radius: 2px; margin-right: 4px;"></span>Open (${currentStatus.open})
+                        </td>
+                        <td style="font-size: 11px; color: #64748b;">
+                          <span style="display: inline-block; width: 10px; height: 10px; background: #8b5cf6; border-radius: 2px; margin-right: 4px;"></span>In Progress (${currentStatus.inProgress})
+                        </td>
+                        <td style="font-size: 11px; color: #64748b;">
+                          <span style="display: inline-block; width: 10px; height: 10px; background: #22c55e; border-radius: 2px; margin-right: 4px;"></span>Resolved (${currentStatus.resolved})
+                        </td>
+                        <td style="font-size: 11px; color: #64748b;">
+                          <span style="display: inline-block; width: 10px; height: 10px; background: #6b7280; border-radius: 2px; margin-right: 4px;"></span>Closed (${currentStatus.closed})
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
 
@@ -1031,13 +1270,32 @@ Write PM commentary as JSON:
           <!-- Comparison -->
           ${comparisonSection}
 
-          <!-- Distributions Row -->
+          <!-- Status Distribution Chart -->
+          <tr>
+            <td style="padding: 0 30px 25px 30px;">
+              <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 18px;">&#9632; Bug Status Distribution</h2>
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="text-align: center; padding: 10px;">
+                    <img src="${statusChartUrl}" alt="Status Distribution Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Distributions Row with Charts -->
           <tr>
             <td style="padding: 0 30px 25px 30px;">
               <table width="100%" cellpadding="0" cellspacing="15">
                 <tr>
                   <td style="width: 50%; vertical-align: top;">
                     <h3 style="color: #1e293b; margin: 0 0 10px 0; font-size: 16px;">&#9632; Severity Distribution</h3>
+                    <!-- Chart Image -->
+                    <div style="text-align: center; margin-bottom: 15px;">
+                      <img src="${severityChartUrl}" alt="Severity Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+                    </div>
+                    <!-- Data Table -->
                     <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 8px;">
                       <thead>
                         <tr style="background: #e2e8f0;">
@@ -1050,6 +1308,11 @@ Write PM commentary as JSON:
                   </td>
                   <td style="width: 50%; vertical-align: top;">
                     <h3 style="color: #1e293b; margin: 0 0 10px 0; font-size: 16px;">&#9632; Priority Distribution</h3>
+                    <!-- Chart Image -->
+                    <div style="text-align: center; margin-bottom: 15px;">
+                      <img src="${priorityChartUrl}" alt="Priority Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+                    </div>
+                    <!-- Data Table -->
                     <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 8px;">
                       <thead>
                         <tr style="background: #e2e8f0;">
@@ -1093,6 +1356,11 @@ Write PM commentary as JSON:
           <tr>
             <td style="padding: 0 30px 25px 30px;">
               <h2 style="color: #1e293b; margin: 0 0 15px 0; font-size: 18px;">&#9632; Team Performance</h2>
+              <!-- Team Chart -->
+              <div style="text-align: center; margin-bottom: 15px;">
+                <img src="${teamChartUrl}" alt="Team Performance Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+              </div>
+              <!-- Team Table -->
               <div style="overflow-x: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                   <thead>
@@ -1124,6 +1392,10 @@ Write PM commentary as JSON:
                   </td>
                   <td style="width: 50%; vertical-align: top;">
                     <h3 style="color: #1e293b; margin: 0 0 10px 0; font-size: 16px;">&#9632; Bug Aging (Open Bugs)</h3>
+                    <!-- Aging Chart -->
+                    <div style="text-align: center; margin-bottom: 15px;">
+                      <img src="${agingChartUrl}" alt="Bug Aging Chart" style="max-width: 100%; height: auto; border-radius: 8px;">
+                    </div>
                     <div style="background: #f8fafc; border-radius: 8px; padding: 15px;">
                       ${agingHTML}
                     </div>

@@ -38,7 +38,7 @@ CREATE TABLE `bug_activity` (
   KEY `idx_user` (`user`),
   KEY `idx_created_at` (`created_at`),
   KEY `idx_bug_created` (`bug_id`,`created_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=186 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=199 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -112,7 +112,7 @@ CREATE TABLE `bugs` (
   KEY `idx_assignee_status` (`assignee`,`status`),
   KEY `idx_project_severity` (`project_id`,`severity`),
   CONSTRAINT `bugs_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=104 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=105 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -132,6 +132,8 @@ CREATE TABLE `email_config` (
   `smtp_password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `from_email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `from_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'BugTracker Reports',
+  `logo_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `company_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'BugTracker',
   `is_active` tinyint(1) DEFAULT '1',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -163,7 +165,7 @@ CREATE TABLE `email_log` (
   KEY `idx_email_log_status` (`status`),
   KEY `idx_email_log_created` (`created_at`),
   CONSTRAINT `email_log_ibfk_1` FOREIGN KEY (`scheduled_report_id`) REFERENCES `scheduled_reports` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -236,7 +238,7 @@ CREATE TABLE `report_recipients` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `unique_recipient` (`scheduled_report_id`,`email`),
   CONSTRAINT `report_recipients_ibfk_1` FOREIGN KEY (`scheduled_report_id`) REFERENCES `scheduled_reports` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -268,7 +270,7 @@ CREATE TABLE `scheduled_reports` (
   KEY `idx_scheduled_reports_active` (`is_active`),
   KEY `idx_scheduled_reports_next` (`next_scheduled_at`),
   CONSTRAINT `scheduled_reports_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -413,4 +415,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-13 13:38:27
+-- Dump completed on 2026-01-14  4:50:42

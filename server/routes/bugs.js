@@ -185,7 +185,7 @@ router.post('/:projectKey', authMiddleware, async (req, res) => {
     const {
       title, description, client, module, environment,
       severity, priority, assignee, targetFixVersion,
-      dueSLA, attachmentLinks, qaOwner, arb
+      dueSLA, attachmentLinks, qaOwner, arb, bugType
     } = req.body;
 
     const bug = await storage.createBug({
@@ -204,7 +204,8 @@ router.post('/:projectKey', authMiddleware, async (req, res) => {
       targetFixVersion: targetFixVersion || '',
       dueSLA: dueSLA || '',
       attachmentLinks: attachmentLinks || '',
-      arb: arb || []
+      arb: arb || [],
+      bugType: bugType || 'Bug'
     }, req.user.username);
 
     res.status(201).json(bug);
@@ -231,9 +232,12 @@ router.put('/:projectKey/:bugId', authMiddleware, async (req, res) => {
     const {
       title, description, client, module, environment,
       severity, priority, status, assignee, qaOwner, qaStatus,
-      targetFixVersion, dueSLA, attachmentLinks, closureReason, arb
+      targetFixVersion, dueSLA, attachmentLinks, closureReason, arb, bugType
     } = req.body;
 
+    // Only allow bugType changes by admin, godmode, or the original reporter
+    const canEditType = isPrivileged || req.user.username === bug.reporter;
+    
     const updated = await storage.updateBug(req.params.bugId, {
       title,
       description,
@@ -250,7 +254,9 @@ router.put('/:projectKey/:bugId', authMiddleware, async (req, res) => {
       dueSLA,
       attachmentLinks,
       closureReason,
-      arb	    
+      arb,
+      // Only update bugType if user has permission
+      bugType: canEditType ? bugType : undefined
     }, req.user.username);
 
     res.json(updated);

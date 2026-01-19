@@ -15,6 +15,9 @@ function BugForm() {
   // Check if user can delete bugs/comments (admin/godmode only)
   const canDelete = user && (user.role === 'admin' || user.role === 'godmode');
   
+  // Check if user can edit bug type (admin, godmode, reporter, or when creating new bug)
+  const canEditType = !isEditing || (user && (user.role === 'admin' || user.role === 'godmode' || user.username === bugReporter));
+  
   const [users, setUsers] = useState([]);
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +47,8 @@ function BugForm() {
     qaOwner: '',
     qaStatus: 'Not Started',
     closureReason: '',
-    arb: []
+    arb: [],
+    bugType: 'Bug'
   });
 
   useEffect(() => {
@@ -80,7 +84,8 @@ function BugForm() {
           qaOwner: bugData.qaOwner || '',
           qaStatus: bugData.qaStatus || 'Not Started',
           closureReason: bugData.closureReason || '',
-          arb: bugData.arb || []
+          arb: bugData.arb || [],
+          bugType: bugData.bugType || 'Bug'
         });
         
         setBugReporter(bugData.reporter || '');
@@ -245,6 +250,45 @@ function BugForm() {
         {error && <div className="error-message">{error}</div>}
 
         <form onSubmit={handleSubmit}>
+          {/* Bug Type Selector - Professional header section */}
+          <div className="bug-type-header">
+            <div className="bug-type-selector">
+              <label className="form-label" style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }}>Type</label>
+              <div className="type-toggle-group">
+                {['Bug', 'Enhancement', 'Task', 'Feature'].map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={`type-toggle-btn ${formData.bugType === type ? 'active' : ''} type-${type.toLowerCase()}`}
+                    onClick={() => canEditType && setFormData({ ...formData, bugType: type })}
+                    disabled={!canEditType && isEditing}
+                    title={!canEditType && isEditing ? 'Only the reporter or admins can change the type' : `Mark as ${type}`}
+                  >
+                    <span className="type-icon">
+                      {type === 'Bug' && '🐛'}
+                      {type === 'Enhancement' && '✨'}
+                      {type === 'Task' && '📋'}
+                      {type === 'Feature' && '🚀'}
+                    </span>
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* Owner Field - Only visible when editing */}
+            {isEditing && bugReporter && (
+              <div className="owner-display">
+                <label className="form-label" style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }}>Owner (Reporter)</label>
+                <div className="owner-info">
+                  <span className="owner-avatar">{bugReporter.charAt(0).toUpperCase()}</span>
+                  <span className="owner-name">{bugReporter}</span>
+                  <span className="owner-badge">Filed this {formData.bugType?.toLowerCase() || 'item'}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="form-group">
             <label className="form-label">Title *</label>
             <input
@@ -556,7 +600,7 @@ function BugForm() {
                             onClick={() => handleDeleteComment(activity.id)}
                             title="Delete comment"
                           >
-                            🗑️
+                            ðŸ—‘ï¸
                           </button>
                         )}
                       </div>

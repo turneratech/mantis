@@ -11,7 +11,8 @@ function BugList({ showMyBugs = false }) {
     status: '',
     severity: '',
     priority: '',
-    search: ''
+    search: '',
+    bugType: ''
   });
 
   useEffect(() => {
@@ -60,6 +61,7 @@ function BugList({ showMyBugs = false }) {
     if (filters.status && bug.status !== filters.status) return false;
     if (filters.severity && bug.severity !== filters.severity) return false;
     if (filters.priority && bug.priority !== filters.priority) return false;
+    if (filters.bugType && bug.bugType !== filters.bugType) return false;
     if (filters.search) {
       const search = filters.search.toLowerCase();
       if (!bug.title?.toLowerCase().includes(search) &&
@@ -154,6 +156,18 @@ function BugList({ showMyBugs = false }) {
           <option value="Medium">Medium</option>
           <option value="Low">Low</option>
         </select>
+        <select
+          name="bugType"
+          className="form-control"
+          value={filters.bugType}
+          onChange={handleFilterChange}
+        >
+          <option value="">All Types</option>
+          <option value="Bug">🐛 Bug</option>
+          <option value="Enhancement">✨ Enhancement</option>
+          <option value="Task">📋 Task</option>
+          <option value="Feature">🚀 Feature</option>
+        </select>
       </div>
 
       <div className="card">
@@ -171,6 +185,7 @@ function BugList({ showMyBugs = false }) {
             <thead>
               <tr>
                 <th>ID</th>
+                <th>Type</th>
                 <th>Title</th>
                 {!projectKey && <th>Project</th>}
                 <th>Status</th>
@@ -191,6 +206,15 @@ function BugList({ showMyBugs = false }) {
                     >
                       {bug.bugId}
                     </Link>
+                  </td>
+                  <td>
+                    <span className={`bug-type-badge type-${(bug.bugType || 'Bug').toLowerCase()}`}>
+                      {bug.bugType === 'Enhancement' && '✨'}
+                      {bug.bugType === 'Task' && '📋'}
+                      {bug.bugType === 'Feature' && '🚀'}
+                      {(!bug.bugType || bug.bugType === 'Bug') && '🐛'}
+                      {' '}{bug.bugType || 'Bug'}
+                    </span>
                   </td>
                   <td style={{ maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {bug.title}

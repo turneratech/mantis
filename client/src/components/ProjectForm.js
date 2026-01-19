@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../App';
 
 function ProjectForm() {
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const isEditing = Boolean(projectId);
+  
+  // Check if user has elevated privileges
+  const hasElevatedPrivileges = user?.role === 'godmode' || user?.role === 'admin';
   
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(isEditing);
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
   
   const [formData, setFormData] = useState({
@@ -104,6 +110,23 @@ function ProjectForm() {
     } catch (error) {
       setError(error.response?.data?.error || 'Failed to save project');
       setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm(`Are you sure you want to delete project "${formData.name}"? This action cannot be undone and will also delete all bugs associated with this project.`)) {
+      return;
+    }
+
+    setDeleting(true);
+    setError('');
+
+    try {
+      await axios.delete(`/api/projects/${projectId}`);
+      navigate('/projects');
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to delete project');
+      setDeleting(false);
     }
   };
 
@@ -230,7 +253,7 @@ function ProjectForm() {
                 alignItems: 'center',
                 gap: '0.5rem'
               }}>
-                <span>🔗</span> GitHub Integration
+                <span>ðŸ”—</span> GitHub Integration
               </h3>
               
               <div className="form-group">
@@ -282,7 +305,7 @@ function ProjectForm() {
                   marginTop: '1rem'
                 }}>
                   <h4 style={{ fontSize: '0.9rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>
-                    📋 GitHub Webhook Setup Instructions
+                    ðŸ“‹ GitHub Webhook Setup Instructions
                   </h4>
                   <ol style={{ 
                     fontSize: '0.85rem', 
@@ -292,7 +315,7 @@ function ProjectForm() {
                     lineHeight: '1.8'
                   }}>
                     <li>Go to your repository: <a href={formData.githubRepoUrl.replace('.git', '')} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--primary)' }}>{formData.githubRepoUrl.replace('.git', '')}</a></li>
-                    <li>Navigate to <strong>Settings → Webhooks → Add webhook</strong></li>
+                    <li>Navigate to <strong>Settings â†’ Webhooks â†’ Add webhook</strong></li>
                     <li>Payload URL: <code style={{ background: 'var(--bg-dark)', padding: '0.2rem 0.4rem', borderRadius: '4px', userSelect: 'all' }}>{window.location.origin}/api/webhooks/github</code></li>
                     <li>Content type: <code style={{ background: 'var(--bg-dark)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>application/json</code></li>
                     <li>Secret: <code style={{ background: 'var(--bg-dark)', padding: '0.2rem 0.4rem', borderRadius: '4px', userSelect: 'all' }}>{formData.webhookSecret}</code></li>
@@ -314,13 +337,25 @@ function ProjectForm() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? 'Saving...' : (isEditing ? 'Update Project' : 'Create Project')}
-            </button>
-            <Link to="/projects" className="btn btn-secondary">
-              Cancel
-            </Link>
+          <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button type="submit" className="btn btn-primary" disabled={submitting || deleting}>
+                {submitting ? 'Saving...' : (isEditing ? 'Update Project' : 'Create Project')}
+              </button>
+              <Link to="/projects" className="btn btn-secondary">
+                Cancel
+              </Link>
+            </div>
+            {isEditing && hasElevatedPrivileges && (
+              <button 
+                type="button" 
+                className="btn btn-danger" 
+                onClick={handleDelete}
+                disabled={submitting || deleting}
+              >
+                {deleting ? 'Deleting...' : 'Delete Project'}
+              </button>
+            )}
           </div>
         </form>
       </div>
@@ -329,3 +364,4 @@ function ProjectForm() {
 }
 
 export default ProjectForm;
+

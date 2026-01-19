@@ -269,6 +269,7 @@ const formatBug = async (bug, includeActivity = true) => {
     attachmentLinks: bug.attachment_links,
     closureReason: bug.closure_reason,
     arb: parseArb(bug),
+    bugType: bug.bug_type || 'Bug',
     created: bug.created_at,
     lastUpdated: bug.updated_at,
     closedDate: bug.closed_at,
@@ -362,7 +363,7 @@ const createBug = async (bugData, reporter) => {
   const {
     bugId, projectId, projectKey, title, description, client, module,
     environment, severity, priority, assignee, qaOwner,
-    targetFixVersion, dueSLA, attachmentLinks, arb
+    targetFixVersion, dueSLA, attachmentLinks, arb, bugType
   } = bugData;
   
   // Convert date format if needed
@@ -373,15 +374,16 @@ const createBug = async (bugData, reporter) => {
       INSERT INTO bugs (
         bug_id, project_id, project_key, title, description, client, module,
         environment, severity, priority, status, reporter, assignee,
-        qa_owner, qa_status, target_fix_version, due_sla, attachment_links, arb
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Open', ?, ?, ?, 'Not Started', ?, ?, ?, ?)
+        qa_owner, qa_status, target_fix_version, due_sla, attachment_links, arb, bugType
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Open', ?, ?, ?, 'Not Started', ?, ?, ?, ?, ?)
     `, [
       bugId, projectId, projectKey, title || '', description || '',
       client || '', module || '', environment || 'Development',
       severity || 'Medium', priority || 'Medium', reporter,
       assignee || null, qaOwner || null, targetFixVersion || null,
       formattedDueSLA, attachmentLinks || null,
-      arb && arb.length > 0 ? JSON.stringify(arb) : null
+      arb && arb.length > 0 ? JSON.stringify(arb) : null,
+      bugType || 'Bug'
     ]);
 
     await conn.execute(
@@ -401,7 +403,7 @@ const updateBug = async (bugId, updates, updatedBy) => {
   const {
     title, description, client, module, environment,
     severity, priority, status, assignee, qaOwner, qaStatus,
-    targetFixVersion, dueSLA, attachmentLinks, closureReason, arb
+    targetFixVersion, dueSLA, attachmentLinks, closureReason, arb, bugType
   } = updates;
 
   // Convert date format if needed
@@ -409,8 +411,8 @@ const updateBug = async (bugId, updates, updatedBy) => {
 
   // Track changes
   const changes = [];
-  const fieldsToTrack = ['status', 'assignee', 'priority', 'severity', 'qaStatus'];
-  const fieldMap = { qaStatus: 'qa_status' };
+  const fieldsToTrack = ['status', 'assignee', 'priority', 'severity', 'qaStatus', 'bugType'];
+  const fieldMap = { qaStatus: 'qa_status', bugType: 'bug_type' };
 
   fieldsToTrack.forEach(field => {
     const dbField = fieldMap[field] || field;
@@ -459,7 +461,8 @@ const updateBug = async (bugId, updates, updatedBy) => {
         attachment_links = ?,
         closure_reason = ?,
         closed_at = ?,
-        arb = ?
+        arb = ?,
+        bug_type = COALESCE(?, bug_type)
       WHERE bug_id = ?
     `, [
       title, description, client, module, environment,
@@ -473,6 +476,7 @@ const updateBug = async (bugId, updates, updatedBy) => {
       closureReason !== undefined ? closureReason : bug.closure_reason,
       closedAt,
       finalArb.length > 0 ? JSON.stringify(finalArb) : null,
+      bugType,
       bugId
     ]);
 

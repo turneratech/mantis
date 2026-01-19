@@ -13,7 +13,7 @@ const router = express.Router();
 // Get all projects (filtered by user access for non-admins)
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const isAdmin = req.user.role === 'admin';
+    const isAdmin = req.user.role === 'admin' || req.user.role === 'godmode';
     const projects = await storage.getAllProjects(req.user.username, isAdmin);
     res.json(projects);
   } catch (error) {
@@ -38,7 +38,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 // Create new project (admin only)
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'godmode') {
       return res.status(403).json({ error: 'Only admins can create projects' });
     }
 
@@ -77,7 +77,7 @@ router.post('/', authMiddleware, async (req, res) => {
 // Update project (admin only)
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'godmode') {
       return res.status(403).json({ error: 'Only admins can update projects' });
     }
 
@@ -110,7 +110,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
 // Delete project (admin only)
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'godmode') {
       return res.status(403).json({ error: 'Only admins can delete projects' });
     }
 
@@ -134,7 +134,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 // Add member to project (admin only)
 router.post('/:id/members', authMiddleware, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'godmode') {
       return res.status(403).json({ error: 'Only admins can manage project members' });
     }
 
@@ -149,7 +149,7 @@ router.post('/:id/members', authMiddleware, async (req, res) => {
 // Remove member from project (admin only)
 router.delete('/:id/members/:username', authMiddleware, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'admin' && req.user.role !== 'godmode') {
       return res.status(403).json({ error: 'Only admins can manage project members' });
     }
 

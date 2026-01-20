@@ -38,7 +38,7 @@ CREATE TABLE `bug_activity` (
   KEY `idx_user` (`user`),
   KEY `idx_created_at` (`created_at`),
   KEY `idx_bug_created` (`bug_id`,`created_at`)
-) ENGINE=InnoDB AUTO_INCREMENT=271 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=281 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -91,7 +91,7 @@ CREATE TABLE `bugs` (
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `closed_at` timestamp NULL DEFAULT NULL,
   `arb` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `bug_type` enum('Bug','Enhancement','Task','Feature') COLLATE utf8mb4_unicode_ci DEFAULT 'Bug',
+  `bugType` enum('Bug','Enhancement','Task','Feature') COLLATE utf8mb4_unicode_ci DEFAULT 'Bug',
   `Temp3` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `Temp4` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `attachments` text COLLATE utf8mb4_unicode_ci,
@@ -111,9 +111,9 @@ CREATE TABLE `bugs` (
   KEY `idx_project_status` (`project_id`,`status`),
   KEY `idx_assignee_status` (`assignee`,`status`),
   KEY `idx_project_severity` (`project_id`,`severity`),
-  KEY `idx_bug_type` (`bug_type`),
+  KEY `idx_bug_type` (`bugType`),
   CONSTRAINT `bugs_ibfk_1` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=114 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=116 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -416,4 +416,4 @@ SET character_set_client = @saved_cs_client;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-19 18:54:57
+-- Dump completed on 2026-01-20  6:16:31

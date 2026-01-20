@@ -97,7 +97,9 @@ function Navbar() {
             </Link>
           )}
 	  {hasElevatedPrivileges && (
-            <Link to="/email-config">📧 Email Config</Link>
+            <Link to="/email-config" className={isActive('/email-config')}>
+              Email Config
+            </Link>
           )}
           {hasElevatedPrivileges && (
             <Link to="/reports" className={isActive('/reports')}>

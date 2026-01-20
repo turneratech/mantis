@@ -11,7 +11,7 @@ function BugForm() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isEditing = Boolean(bugId);
-  
+  const [bugReporter, setBugReporter] = useState(''); 
   // Check if user can delete bugs/comments (admin/godmode only)
   const canDelete = user && (user.role === 'admin' || user.role === 'godmode');
   
@@ -24,8 +24,7 @@ function BugForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [attachments, setAttachments] = useState([]);
-  const [bugReporter, setBugReporter] = useState('');
-  
+    
   // Activity log and comments state
   const [activityLog, setActivityLog] = useState([]);
   const [comment, setComment] = useState('');

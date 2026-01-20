@@ -238,25 +238,28 @@ router.put('/:projectKey/:bugId', authMiddleware, async (req, res) => {
     // Only allow bugType changes by admin, godmode, or the original reporter
     const canEditType = isPrivileged || req.user.username === bug.reporter;
     
+    // Helper to convert undefined to null (MySQL2 doesn't accept undefined)
+    const nullIfUndefined = (val) => val === undefined ? null : val;
+    
     const updated = await storage.updateBug(req.params.bugId, {
-      title,
-      description,
-      client,
-      module,
-      environment,
-      severity,
-      priority,
-      status,
-      assignee,
-      qaOwner,
-      qaStatus,
-      targetFixVersion,
-      dueSLA,
-      attachmentLinks,
-      closureReason,
-      arb,
-      // Only update bugType if user has permission
-      bugType: canEditType ? bugType : undefined
+      title: nullIfUndefined(title),
+      description: nullIfUndefined(description),
+      client: nullIfUndefined(client),
+      module: nullIfUndefined(module),
+      environment: nullIfUndefined(environment),
+      severity: nullIfUndefined(severity),
+      priority: nullIfUndefined(priority),
+      status: nullIfUndefined(status),
+      assignee: nullIfUndefined(assignee),
+      qaOwner: nullIfUndefined(qaOwner),
+      qaStatus: nullIfUndefined(qaStatus),
+      targetFixVersion: nullIfUndefined(targetFixVersion),
+      dueSLA: nullIfUndefined(dueSLA),
+      attachmentLinks: nullIfUndefined(attachmentLinks),
+      closureReason: nullIfUndefined(closureReason),
+      arb: nullIfUndefined(arb),
+      // Only update bugType if user has permission (null will preserve existing via COALESCE)
+      bugType: canEditType ? nullIfUndefined(bugType) : null
     }, req.user.username);
 
     res.json(updated);
@@ -349,3 +352,4 @@ router.get('/stats/:projectKey', authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
+

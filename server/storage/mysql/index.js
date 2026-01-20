@@ -269,7 +269,7 @@ const formatBug = async (bug, includeActivity = true) => {
     attachmentLinks: bug.attachment_links,
     closureReason: bug.closure_reason,
     arb: parseArb(bug),
-    bugType: bug.bug_type || 'Bug',
+    bugType: bug.bugType || 'Bug',
     created: bug.created_at,
     lastUpdated: bug.updated_at,
     closedDate: bug.closed_at,
@@ -406,24 +406,33 @@ const updateBug = async (bugId, updates, updatedBy) => {
     targetFixVersion, dueSLA, attachmentLinks, closureReason, arb, bugType
   } = updates;
 
-  // Convert date format if needed
-  const formattedDueSLA = dueSLA ? dueSLA.split('T')[0] : (dueSLA === '' ? null : undefined);
+  // Helper function: convert undefined to null (MySQL2 doesn't accept undefined)
+  const safeNull = (val) => val === undefined ? null : val;
+
+  // Convert date format if needed - FIXED: never return undefined
+  let formattedDueSLA = null;
+  if (dueSLA) {
+    formattedDueSLA = dueSLA.split('T')[0];
+  } else if (dueSLA === '') {
+    formattedDueSLA = null;
+  }
+  // If dueSLA is undefined/null, formattedDueSLA stays null (COALESCE will preserve existing)
 
   // Track changes
   const changes = [];
   const fieldsToTrack = ['status', 'assignee', 'priority', 'severity', 'qaStatus', 'bugType'];
-  const fieldMap = { qaStatus: 'qa_status', bugType: 'bug_type' };
+  const fieldMap = { qaStatus: 'qa_status', bugType: 'bugType' };
 
   fieldsToTrack.forEach(field => {
     const dbField = fieldMap[field] || field;
     const newValue = updates[field];
-    if (newValue !== undefined && newValue !== bug[dbField]) {
+    if (newValue !== undefined && newValue !== null && newValue !== bug[dbField]) {
       changes.push(`${field}: "${bug[dbField] || ''}" → "${newValue}"`);
     }
   });
 
   // Track ARB changes - USE parseArb helper
-  if (arb !== undefined) {
+  if (arb !== undefined && arb !== null) {
     const oldArb = parseArb(bug);
     if (JSON.stringify(oldArb) !== JSON.stringify(arb)) {
       changes.push(`ARB: "${oldArb.join(', ')}" → "${arb.join(', ')}"`);
@@ -432,7 +441,7 @@ const updateBug = async (bugId, updates, updatedBy) => {
 
   // Handle closed date and reset ARB when closed
   let closedAt = bug.closed_at;
-  let finalArb = arb !== undefined ? arb : parseArb(bug);
+  let finalArb = (arb !== undefined && arb !== null) ? arb : parseArb(bug);
 
   if (status === 'Closed' && bug.status !== 'Closed') {
     closedAt = new Date();
@@ -462,21 +471,29 @@ const updateBug = async (bugId, updates, updatedBy) => {
         closure_reason = ?,
         closed_at = ?,
         arb = ?,
-        bug_type = COALESCE(?, bug_type)
+        bugType = COALESCE(?, bugType)
       WHERE bug_id = ?
     `, [
-      title, description, client, module, environment,
-      severity, priority, status,
+      // All values wrapped with safeNull to prevent undefined
+      safeNull(title),
+      safeNull(description),
+      safeNull(client),
+      safeNull(module),
+      safeNull(environment),
+      safeNull(severity),
+      safeNull(priority),
+      safeNull(status),
+      // Fields that need to preserve existing value if not provided
       assignee !== undefined ? assignee : bug.assignee,
       qaOwner !== undefined ? qaOwner : bug.qa_owner,
-      qaStatus,
+      safeNull(qaStatus),
       targetFixVersion !== undefined ? targetFixVersion : bug.target_fix_version,
-      formattedDueSLA,
+      formattedDueSLA,  // Already safe (null, not undefined)
       attachmentLinks !== undefined ? attachmentLinks : bug.attachment_links,
       closureReason !== undefined ? closureReason : bug.closure_reason,
-      closedAt,
+      closedAt,  // Already handled above (Date or null)
       finalArb.length > 0 ? JSON.stringify(finalArb) : null,
-      bugType,
+      safeNull(bugType),
       bugId
     ]);
 
@@ -490,7 +507,6 @@ const updateBug = async (bugId, updates, updatedBy) => {
 
   return await getBugById(bugId);
 };
-
 
 
 const deleteBug = async (bugId) => {

@@ -9,8 +9,13 @@ function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [error, setError] = useState('');
+  const [resetPasswordData, setResetPasswordData] = useState({
+    newPassword: '',
+    confirmPassword: ''
+  });
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -119,6 +124,51 @@ function UserManagement() {
     return projects.filter(p => p.members?.includes(username));
   };
 
+  // Open reset password modal
+  const openResetPasswordModal = (user) => {
+    setSelectedUser(user);
+    setResetPasswordData({ newPassword: '', confirmPassword: '' });
+    setError('');
+    setShowResetPasswordModal(true);
+  };
+
+  // Handle reset password form change
+  const handleResetPasswordChange = (e) => {
+    setResetPasswordData({
+      ...resetPasswordData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  // Handle password reset submission
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (resetPasswordData.newPassword !== resetPasswordData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (resetPasswordData.newPassword.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      await axios.put(`/api/auth/users/${selectedUser.id}/reset-password`, {
+        newPassword: resetPasswordData.newPassword
+      });
+      
+      alert(`Password reset successfully for ${selectedUser.username}`);
+      setShowResetPasswordModal(false);
+      setSelectedUser(null);
+      setResetPasswordData({ newPassword: '', confirmPassword: '' });
+    } catch (error) {
+      setError(error.response?.data?.error || 'Failed to reset password');
+    }
+  };
+
   // Get badge class for role
   const getRoleBadgeClass = (role) => {
     switch (role) {
@@ -135,7 +185,7 @@ function UserManagement() {
   const getRoleDisplayName = (role) => {
     switch (role) {
       case 'godmode':
-        return '⚡ GOD MODE';
+        return 'âš¡ GOD MODE';
       case 'admin':
         return 'Admin';
       default:
@@ -215,6 +265,15 @@ function UserManagement() {
                       >
                         Assign Projects
                       </button>
+                      {isGodMode && user.id !== currentUser.id && (
+                        <button
+                          className="btn btn-warning btn-sm"
+                          onClick={() => openResetPasswordModal(user)}
+                          title="Reset user password"
+                        >
+                          🔑 Reset Password
+                        </button>
+                      )}
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() => handleDelete(user.id, user.role, user.username)}
@@ -274,7 +333,7 @@ function UserManagement() {
                   {isGodMode && (
                     <>
                       <option value="admin">Admin</option>
-                      <option value="godmode">⚡ God Mode (Super User)</option>
+                      <option value="godmode">âš¡ God Mode (Super User)</option>
                     </>
                   )}
                 </select>
@@ -323,6 +382,54 @@ function UserManagement() {
                 Done
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {showResetPasswordModal && selectedUser && (
+        <div className="modal-overlay" onClick={() => setShowResetPasswordModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>🔑 Reset Password for {selectedUser.username}</h2>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+              As a God Mode user, you can reset this user's password without knowing their current password.
+            </p>
+            {error && <div className="error-message">{error}</div>}
+            <form onSubmit={handleResetPasswordSubmit}>
+              <div className="form-group">
+                <label className="form-label">New Password *</label>
+                <input
+                  type="password"
+                  name="newPassword"
+                  className="form-control"
+                  value={resetPasswordData.newPassword}
+                  onChange={handleResetPasswordChange}
+                  placeholder="Enter new password (min 6 characters)"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Confirm New Password *</label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  className="form-control"
+                  value={resetPasswordData.confirmPassword}
+                  onChange={handleResetPasswordChange}
+                  placeholder="Confirm new password"
+                  required
+                />
+              </div>
+              <div className="modal-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowResetPasswordModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-warning">
+                  Reset Password
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

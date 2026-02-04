@@ -168,4 +168,39 @@ router.put('/change-password', authMiddleware, async (req, res) => {
   }
 });
 
+// Reset password (God Mode only)
+router.put('/users/:id/reset-password', authMiddleware, async (req, res) => {
+  try {
+    // Only godmode users can reset passwords
+    if (req.user.role !== 'godmode') {
+      return res.status(403).json({ error: 'Only god mode users can reset passwords' });
+    }
+
+    const { newPassword } = req.body;
+    
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const targetUser = await storage.getUserById(req.params.id);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Prevent resetting own password (they should use change-password for that)
+    if (targetUser.id === req.user.id) {
+      return res.status(400).json({ error: 'Use change password to update your own password' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await storage.updateUserPassword(req.params.id, hashedPassword);
+
+    console.log(`[God Mode] Password reset for user ${targetUser.username} by ${req.user.username}`);
+    res.json({ message: `Password reset successfully for ${targetUser.username}` });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 module.exports = router;

@@ -29,6 +29,8 @@ function BugForm() {
   const [activityLog, setActivityLog] = useState([]);
   const [comment, setComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const commentsPerPage = 10;
   
   const [formData, setFormData] = useState({
     title: '',
@@ -172,6 +174,7 @@ function BugForm() {
       // Update activity log with the response
       setActivityLog(res.data.activityLog || []);
       setComment('');
+      setCurrentPage(1); // Reset to first page after adding comment
     } catch (error) {
       console.error('Error adding comment:', error);
       setError('Failed to add comment');
@@ -305,11 +308,11 @@ function BugForm() {
             <label className="form-label">Description</label>
             <textarea
               name="description"
-              className="form-control"
+              className="form-control description-textarea"
               value={formData.description}
               onChange={handleChange}
               placeholder="Detailed description, steps to reproduce, expected vs actual behavior..."
-              rows="5"
+              rows="15"
             />
           </div>
 
@@ -576,55 +579,8 @@ function BugForm() {
         <div className="activity-section" style={{ marginTop: '2rem' }}>
           <h2>Activity Log & Comments</h2>
           <div className="card">
-            <div className="activity-list">
-              {activityLog.length === 0 ? (
-                <div className="empty-state" style={{ padding: '1.5rem' }}>
-                  <p>No activity yet. Add a comment below to start the conversation.</p>
-                </div>
-              ) : (
-                [...activityLog].reverse().map((activity, idx) => (
-                  <div key={activity.id || idx} className="activity-item">
-                    <div className="activity-avatar">
-                      {getInitials(activity.user)}
-                    </div>
-                    <div className="activity-content">
-                      <div className="activity-header">
-                        <span className="activity-user">{activity.user}</span>
-                        <span className="activity-time">{formatDate(activity.timestamp)}</span>
-                        {/* Delete button for comments - admin/godmode only */}
-                        {canDelete && activity.action === 'comment' && activity.id && (
-                          <button
-                            type="button"
-                            className="btn-delete-comment"
-                            onClick={() => handleDeleteComment(activity.id)}
-                            title="Delete comment"
-                          >
-                            ðŸ—‘ï¸
-                          </button>
-                        )}
-                      </div>
-                      <div className={`activity-message ${activity.action === 'comment' ? 'comment' : ''} ${activity.action === 'commit' ? 'commit' : ''}`}>
-                        {activity.action === 'comment' ? (
-                          <span style={{ whiteSpace: 'pre-wrap' }}>{activity.message}</span>
-                        ) : activity.action === 'commit' ? (
-                          <span dangerouslySetInnerHTML={{ 
-                            __html: activity.message.replace(
-                              /(https?:\/\/[^\s]+)/g, 
-                              '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-                            )
-                          }} />
-                        ) : (
-                          <em>{activity.message}</em>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Comment Form */}
-            <form className="comment-form" onSubmit={handleAddComment}>
+            {/* Comment Form - at the top */}
+            <form className="comment-form" onSubmit={handleAddComment} style={{ marginBottom: '1.5rem' }}>
               <textarea
                 className="form-control comment-textarea"
                 placeholder="Add a comment..."
@@ -640,6 +596,105 @@ function BugForm() {
                 {submittingComment ? 'Posting...' : 'Post'}
               </button>
             </form>
+
+            {/* Previous Comments/Activity - Latest to Oldest with Pagination */}
+            <div className="activity-list">
+              {activityLog.length === 0 ? (
+                <div className="empty-state" style={{ padding: '1.5rem' }}>
+                  <p>No activity yet. Add a comment above to start the conversation.</p>
+                </div>
+              ) : (
+                <>
+                  {(() => {
+                    const reversedLog = [...activityLog].reverse(); // Latest to oldest
+                    const totalPages = Math.ceil(reversedLog.length / commentsPerPage);
+                    const startIdx = (currentPage - 1) * commentsPerPage;
+                    const endIdx = startIdx + commentsPerPage;
+                    const paginatedLog = reversedLog.slice(startIdx, endIdx);
+                    
+                    return (
+                      <>
+                        {paginatedLog.map((activity, idx) => (
+                          <div key={activity.id || idx} className="activity-item">
+                            <div className="activity-avatar">
+                              {getInitials(activity.user)}
+                            </div>
+                            <div className="activity-content">
+                              <div className="activity-header">
+                                <span className="activity-user">{activity.user}</span>
+                                <span className="activity-time">{formatDate(activity.timestamp)}</span>
+                                {/* Delete button for comments - admin/godmode only */}
+                                {canDelete && activity.action === 'comment' && activity.id && (
+                                  <button
+                                    type="button"
+                                    className="btn-delete-comment"
+                                    onClick={() => handleDeleteComment(activity.id)}
+                                    title="Delete comment"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
+                              <div className={`activity-message ${activity.action === 'comment' ? 'comment' : ''} ${activity.action === 'commit' ? 'commit' : ''}`}>
+                                {activity.action === 'comment' ? (
+                                  <span style={{ whiteSpace: 'pre-wrap' }}>{activity.message}</span>
+                                ) : activity.action === 'commit' ? (
+                                  <span dangerouslySetInnerHTML={{ 
+                                    __html: activity.message.replace(
+                                      /(https?:\/\/[^\s]+)/g, 
+                                      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+                                    )
+                                  }} />
+                                ) : (
+                                  <em>{activity.message}</em>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                          <div className="pagination-controls" style={{ 
+                            display: 'flex', 
+                            justifyContent: 'center', 
+                            gap: '1rem', 
+                            marginTop: '1rem',
+                            padding: '1rem 0',
+                            borderTop: '1px solid var(--border-color, #e0e0e0)'
+                          }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                              disabled={currentPage === 1}
+                            >
+                              ← Previous
+                            </button>
+                            <span style={{ 
+                              display: 'flex', 
+                              alignItems: 'center',
+                              color: 'var(--text-secondary, #666)',
+                              fontSize: '0.9rem'
+                            }}>
+                              Page {currentPage} of {totalPages}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                              disabled={currentPage === totalPages}
+                            >
+                              Next →
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

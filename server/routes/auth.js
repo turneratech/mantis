@@ -74,7 +74,7 @@ router.get('/users', authMiddleware, async (req, res) => {
 // Register new user (admin only)
 router.post('/register', authMiddleware, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (req.user.role !== 'godmode' && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only admins can create users' });
     }
 
@@ -111,17 +111,20 @@ router.post('/register', authMiddleware, async (req, res) => {
 // Delete user (admin only)
 router.delete('/users/:id', authMiddleware, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only admins can delete users' });
+    const actorRole = req.user.role;
+    if (actorRole !== 'godmode' && actorRole !== 'admin') {
+      return res.status(403).json({ error: 'You do not have permission to delete users' });
     }
-
     const user = await storage.getUserById(req.params.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    
-    if (user.username === 'admin') {
-      return res.status(400).json({ error: 'Cannot delete default admin user' });
+    if (user.id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account' });
+    }
+    const ROLE_RANK = { godmode: 3, admin: 2, user: 1 };
+    if ((ROLE_RANK[actorRole] || 0) <= (ROLE_RANK[user.role] || 0)) {
+      return res.status(403).json({ error: 'You do not have permission to delete this user' });
     }
 
     const deleted = await storage.deleteUser(req.params.id);
@@ -199,6 +202,29 @@ router.put('/users/:id/reset-password', authMiddleware, async (req, res) => {
     res.json({ message: `Password reset successfully for ${targetUser.username}` });
   } catch (error) {
     console.error('Password reset error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Switch user role (godmode only) — user <-> admin
+router.put('/users/:id/role', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'godmode') {
+      return res.status(403).json({ error: 'Only God Mode users can change roles' });
+    }
+    const { role } = req.body;
+    if (!['user', 'admin', 'godmode'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+    const targetUser = await storage.getUserById(req.params.id);
+    if (!targetUser) return res.status(404).json({ error: 'User not found' });
+    if (targetUser.id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot change your own role' });
+    }
+    const updatedUser = await storage.updateUserRole(req.params.id, role);
+    res.json({ id: updatedUser.id, username: updatedUser.username, role: updatedUser.role });
+  } catch (error) {
+    console.error('Role update error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

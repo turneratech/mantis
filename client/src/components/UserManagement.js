@@ -59,8 +59,8 @@ function UserManagement() {
     setError('');
 
     // Validation: Only godmode can create godmode/admin users
-    if (!isGodMode && (formData.role === 'godmode' || formData.role === 'admin')) {
-      setError('Only super users can create admin or super user accounts');
+    if (isAdmin && formData.role !== 'user') {
+      setError('Admins can only create regular user accounts');
       return;
     }
 
@@ -210,6 +210,26 @@ function UserManagement() {
     return <div className="loading">Loading users...</div>;
   }
 
+  const isAdmin = currentUser?.role === 'admin';
+
+  const handleRoleSwitch = async (targetUser) => {
+    const newRole = targetUser.role === 'admin' ? 'user' : 'admin';
+    const label = newRole === 'admin' ? 'promote to Admin' : 'demote to User';
+    if (!window.confirm(`Are you sure you want to ${label} "${targetUser.username}"?`)) return;
+    try {
+      await axios.put(`/api/auth/users/${targetUser.id}/role`, { role: newRole });
+      fetchData();
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to change role');
+    }
+  };
+
+  const canSwitchRole = (targetUser) => {
+    if (!isGodMode) return false;
+    if (targetUser.id === currentUser?.id) return false;
+    return targetUser.role === 'user' || targetUser.role === 'admin';
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -265,6 +285,17 @@ function UserManagement() {
                       >
                         Assign Projects
                       </button>
+                      {canSwitchRole(user) && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleRoleSwitch(user)}
+                          title={user.role === 'admin' ? 'Demote to User' : 'Promote to Admin'}
+                          style={{ color: user.role === 'admin' ? 'var(--warning, #f59e0b)' : 'var(--success, #22c55e)' }}
+                        >
+                          {user.role === 'admin' ? '↓ Demote' : '↑ Promote'}
+                        </button>
+                      )}
+
                       {isGodMode && user.id !== currentUser.id && (
                         <button
                           className="btn btn-warning btn-sm"
@@ -274,14 +305,15 @@ function UserManagement() {
                           🔑 Reset Password
                         </button>
                       )}
-                      <button
-                        className="btn btn-danger btn-sm"
-                        onClick={() => handleDelete(user.id, user.role, user.username)}
-                        disabled={!canDeleteUser(user)}
-                        title={!canDeleteUser(user) ? 'Cannot delete this user' : 'Delete user'}
-                      >
-                        Delete
-                      </button>
+                      {canDeleteUser(user) && (
+                        <button
+                          className="btn btn-danger btn-sm"
+                          onClick={() => handleDelete(user.id, user.role, user.username)}
+                          title="Delete user"
+                        >
+                          Delete
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

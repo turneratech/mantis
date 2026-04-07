@@ -1,24 +1,32 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../App';
 
 function BugList({ showMyBugs = false }) {
   const { projectKey } = useParams();
+  const { user: currentUser } = useAuth();
+  const isElevated = currentUser?.role === 'admin' || currentUser?.role === 'godmode';
   const [bugs, setBugs] = useState([]);
   const [project, setProject] = useState(null);
+  const [allProjects, setAllProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     status: '',
     severity: '',
     priority: '',
     search: '',
-    bugType: ''
+    bugType: '',
+    projectKey: ''
   });
 
   useEffect(() => {
     fetchBugs();
     if (projectKey) {
       fetchProject();
+    }
+    if (showMyBugs) {
+      fetchProjects();
     }
   }, [projectKey, showMyBugs]);
 
@@ -29,6 +37,15 @@ function BugList({ showMyBugs = false }) {
       setProject(proj);
     } catch (error) {
       console.error('Error fetching project:', error);
+    }
+  };
+
+  const fetchProjects = async () => {
+    try {
+      const res = await axios.get('/api/projects');
+      setAllProjects(res.data.filter(p => p.status !== 'Archived' && p.status !== 'Closed'));
+    } catch (error) {
+      console.error('Error fetching projects:', error);
     }
   };
 
@@ -62,6 +79,7 @@ function BugList({ showMyBugs = false }) {
     if (filters.severity && bug.severity !== filters.severity) return false;
     if (filters.priority && bug.priority !== filters.priority) return false;
     if (filters.bugType && bug.bugType !== filters.bugType) return false;
+    if (filters.projectKey && (bug.projectKey || '').toUpperCase() !== filters.projectKey.toUpperCase()) return false;
     if (filters.search) {
       const search = filters.search.toLowerCase();
       if (!bug.title?.toLowerCase().includes(search) &&
@@ -119,6 +137,19 @@ function BugList({ showMyBugs = false }) {
           value={filters.search}
           onChange={handleFilterChange}
         />
+        {showMyBugs && allProjects.length > 0 && (
+          <select
+            name="projectKey"
+            className="form-control"
+            value={filters.projectKey}
+            onChange={handleFilterChange}
+          >
+            <option value="">All Projects</option>
+            {allProjects.map(p => (
+              <option key={p.id} value={p.key}>{p.key} – {p.name}</option>
+            ))}
+          </select>
+        )}
         <select
           name="status"
           className="form-control"
@@ -180,7 +211,102 @@ function BugList({ showMyBugs = false }) {
                 : 'Try adjusting your filters or create a new bug.'}
             </p>
           </div>
+        ) : showMyBugs && isElevated ? (
+          // Admin / Godmode My Bugs: grouped by project
+          (() => {
+            const grouped = {};
+            filteredBugs.forEach(bug => {
+              const key = bug.projectKey || 'Unknown';
+              if (!grouped[key]) grouped[key] = { name: bug.projectName || key, bugs: [] };
+              grouped[key].bugs.push(bug);
+            });
+            return Object.keys(grouped).sort().map(key => {
+              const group = grouped[key];
+              const openCount     = group.bugs.filter(b => b.status === 'Open' || b.status === 'Reopened').length;
+              const inProgCount   = group.bugs.filter(b => b.status === 'In Progress').length;
+              const resolvedCount = group.bugs.filter(b => b.status === 'Resolved').length;
+              return (
+                <div key={key} style={{ marginBottom: '1.5rem' }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '0.65rem 1rem', background: 'var(--bg-secondary)',
+                    borderBottom: '1px solid var(--border)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <Link to={`/projects/${key}/bugs`} className="project-badge">{key}</Link>
+                      <strong style={{ fontSize: '0.9rem' }}>{group.name}</strong>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                        {group.bugs.length} bug{group.bugs.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.78rem' }}>
+                      {openCount     > 0 && <span style={{ color: '#ef4444' }}>● {openCount} open</span>}
+                      {inProgCount   > 0 && <span style={{ color: '#f97316' }}>● {inProgCount} in progress</span>}
+                      {resolvedCount > 0 && <span style={{ color: '#22c55e' }}>● {resolvedCount} resolved</span>}
+                    </div>
+                  </div>
+                  <table className="bug-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Type</th>
+                        <th>Title</th>
+                        <th>Status</th>
+                        <th>Severity</th>
+                        <th>Priority</th>
+                        <th>Assignee</th>
+                        <th>Created</th>
+                        <th>Due/SLA</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {group.bugs.map(bug => (
+                        <tr key={bug.bugId}>
+                          <td>
+                            <Link to={`/projects/${bug.projectKey}/bugs/${bug.bugId}`} className="bug-id">
+                              {bug.bugId}
+                            </Link>
+                          </td>
+                          <td>
+                            <span className={`bug-type-badge type-${(bug.bugType || 'Bug').toLowerCase()}`}>
+                              {bug.bugType === 'Enhancement' && '✨'}
+                              {bug.bugType === 'Task' && '📋'}
+                              {bug.bugType === 'Feature' && '🚀'}
+                              {(!bug.bugType || bug.bugType === 'Bug') && '🐛'}
+                              {' '}{bug.bugType || 'Bug'}
+                            </span>
+                          </td>
+                          <td style={{ maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {bug.title}
+                          </td>
+                          <td>
+                            <span className={`badge badge-${bug.status?.toLowerCase().replace(' ', '-')}`}>
+                              {bug.status}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge badge-${bug.severity?.toLowerCase()}`}>
+                              {bug.severity}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge badge-${bug.priority?.toLowerCase()}`}>
+                              {bug.priority}
+                            </span>
+                          </td>
+                          <td>{bug.assignee || '-'}</td>
+                          <td>{formatDate(bug.created)}</td>
+                          <td>{bug.dueSLA || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            });
+          })()
         ) : (
+          // Standard flat table — unchanged
           <table className="bug-table">
             <thead>
               <tr>

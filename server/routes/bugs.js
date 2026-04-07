@@ -112,32 +112,33 @@ router.get('/my-bugs', authMiddleware, async (req, res) => {
     const username = req.user.username;
     const isPrivileged = hasElevatedPrivileges(req.user);
     
-    // For privileged users, return all bugs
     if (isPrivileged) {
       try {
         const bugs = await storage.getAllBugs();
         return res.json(bugs);
       } catch (e) {
-        // Fallback if getAllBugs fails
         console.error('getAllBugs failed, using getBugsByUser fallback:', e.message);
         const bugs = await storage.getBugsByUser(username);
         return res.json(bugs);
       }
     }
-    
-    // For regular users, get bugs assigned to them
+      
+    // Regular user
     const assignedBugs = await storage.getBugsByUser(username);
-    
-    // Create a map to avoid duplicates
     const bugMap = new Map();
-    assignedBugs.forEach(bug => bugMap.set(bug.bugId, bug));
-    
+    assignedBugs.forEach(bug => {
+      if (bug.status !== 'Resolved' && bug.status !== 'Closed') { // ← and here
+        bugMap.set(bug.bugId, bug);
+      }
+    });
     res.json(Array.from(bugMap.values()));
   } catch (error) {
     console.error('Error fetching user bugs:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+
 
 // Get single bug
 router.get('/:projectKey/:bugId', authMiddleware, async (req, res) => {

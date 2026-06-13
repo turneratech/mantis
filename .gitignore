@@ -38,7 +38,8 @@ coverage/
 
 # Uploads (local storage)
 uploads/
-server/data/*.csv
+# Runtime deployment overrides (secrets — do not commit)
+server/data/deployment.local.json
 
 # Temporary files
 tmp/
@@ -50,3 +51,6 @@ ecosystem.config.js
 
 # Testing
 .coverage/
+
+# Local tooling
+.claude/

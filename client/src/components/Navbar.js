@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
 import HelpModal from './HelpModal';
+import logoSmall from '../utils/brandAssets';
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -77,8 +78,8 @@ function Navbar() {
     <>
       <nav className="navbar">
         <Link to="/" className="navbar-brand">
-          <img src="/bugtracker/imgs/logo_small.png" alt="BugTracker" style={{ height: '28px', marginRight: '8px', verticalAlign: 'middle' }} />
-          BugTracker
+          <img src={logoSmall} alt="Mantis" style={{ height: '28px', marginRight: '8px', verticalAlign: 'middle' }} />
+          Mantis
         </Link>
         
         <div className="navbar-nav">
@@ -99,6 +100,11 @@ function Navbar() {
 	  {hasElevatedPrivileges && (
             <Link to="/email-config" className={isActive('/email-config')}>
               Email Config
+            </Link>
+          )}
+          {hasElevatedPrivileges && (
+            <Link to="/deployment" className={isActive('/deployment')}>
+              Deployment
             </Link>
           )}
           {hasElevatedPrivileges && (

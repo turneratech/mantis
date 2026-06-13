@@ -7,6 +7,8 @@ const express = require('express');
 const { v4: uuidv4 } = require('uuid');
 const storage = require('../storage');
 const { authMiddleware } = require('../middleware/auth');
+const { checkLimit } = require('../middleware/licenseValidator');
+const webhookService = require('../services/webhookService');
 
 const router = express.Router();
 
@@ -36,7 +38,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 });
 
 // Create new project (admin only)
-router.post('/', authMiddleware, async (req, res) => {
+router.post('/', authMiddleware, checkLimit('projects'), async (req, res) => {
   try {
     if (req.user.role !== 'admin' && req.user.role !== 'godmode') {
       return res.status(403).json({ error: 'Only admins can create projects' });
@@ -66,6 +68,8 @@ router.post('/', authMiddleware, async (req, res) => {
       createdBy: req.user.username,
       members: members || [req.user.username]
     });
+
+    webhookService.dispatch('project.created', { project, user: req.user.username }).catch(() => {});
 
     res.status(201).json(project);
   } catch (error) {
@@ -100,6 +104,8 @@ router.put('/:id', authMiddleware, async (req, res) => {
       webhookSecret     // FIX: Added this field
     });
 
+    webhookService.dispatch('project.updated', { project: updated, user: req.user.username }).catch(() => {});
+
     res.json(updated);
   } catch (error) {
     console.error('Error updating project:', error);
@@ -123,7 +129,9 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ error: 'Project not found' });
     }
-    
+
+    webhookService.dispatch('project.deleted', { projectId: req.params.id, user: req.user.username }).catch(() => {});
+
     res.json({ message: 'Project deleted' });
   } catch (error) {
     console.error('Error deleting project:', error);

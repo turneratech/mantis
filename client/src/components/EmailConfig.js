@@ -358,7 +358,7 @@ function EmailConfig() {
                     smtp_user: '',
                     smtp_password: '',
                     from_email: '',
-                    from_name: 'BugTracker Reports',
+                    from_name: 'Mantis Reports',
                     is_active: true
                   })}>
                     ➕ Add SMTP Configuration
@@ -431,7 +431,7 @@ function EmailConfig() {
                       smtp_user: '',
                       smtp_password: '',
                       from_email: '',
-                      from_name: 'BugTracker Reports',
+                      from_name: 'Mantis Reports',
                       is_active: true
                     })}>
                       <span className="preset-icon">📧</span>
@@ -446,7 +446,7 @@ function EmailConfig() {
                       smtp_user: '',
                       smtp_password: '',
                       from_email: '',
-                      from_name: 'BugTracker Reports',
+                      from_name: 'Mantis Reports',
                       is_active: true
                     })}>
                       <span className="preset-icon">📬</span>
@@ -461,7 +461,7 @@ function EmailConfig() {
                       smtp_user: '',
                       smtp_password: '',
                       from_email: '',
-                      from_name: 'BugTracker Reports',
+                      from_name: 'Mantis Reports',
                       is_active: true
                     })}>
                       <span className="preset-icon">☁️</span>
@@ -476,7 +476,7 @@ function EmailConfig() {
                       smtp_user: 'apikey',
                       smtp_password: '',
                       from_email: '',
-                      from_name: 'BugTracker Reports',
+                      from_name: 'Mantis Reports',
                       is_active: true
                     })}>
                       <span className="preset-icon">🚀</span>
@@ -592,7 +592,7 @@ function EmailConfig() {
                         value={editingSmtp.from_name || ''}
                         onChange={(e) => setEditingSmtp({ ...editingSmtp, from_name: e.target.value })}
                         className="form-control"
-                        placeholder="BugTracker Reports"
+                        placeholder="Mantis Reports"
                       />
                     </div>
                   </div>

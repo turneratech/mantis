@@ -17,7 +17,7 @@ const {
 class AzureBlobProvider {
   constructor(config) {
     this.name = 'azure';
-    this.containerName = config.containerName || 'bugtracker';
+    this.containerName = config.containerName || 'mantis';
     this.baseFolder = config.baseFolder || '';
 
     // =====================================================

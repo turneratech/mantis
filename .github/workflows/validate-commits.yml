@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
 
           echo "========================================"
-          echo "  BugTracker Commit Validation"
+          echo "  Mantis Commit Validation"
           echo "========================================"
           echo ""
 

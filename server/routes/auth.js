@@ -8,6 +8,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const storage = require('../storage');
 const { authMiddleware, generateToken } = require('../middleware/auth');
+const { checkLimit } = require('../middleware/licenseValidator');
 
 const router = express.Router();
 
@@ -72,7 +73,7 @@ router.get('/users', authMiddleware, async (req, res) => {
 });
 
 // Register new user (admin only)
-router.post('/register', authMiddleware, async (req, res) => {
+router.post('/register', authMiddleware, checkLimit('users'), async (req, res) => {
   try {
     if (req.user.role !== 'godmode' && req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Only admins can create users' });

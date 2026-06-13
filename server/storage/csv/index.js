@@ -417,8 +417,9 @@ const updateBug = async (bugId, updates, updatedBy) => {
     if (JSON.stringify(oldArb) !== JSON.stringify(updates.arb)) {
       changes.push(`ARB: "${oldArb.join(', ')}" → "${updates.arb.join(', ')}"`);
     }
- 
-   // Update fields
+  }
+
+  // Update fields
   const updateableFields = ['title', 'description', 'client', 'module', 'environment', 
     'severity', 'priority', 'status', 'assignee', 'qaOwner', 'qaStatus',
     'targetFixVersion', 'dueSLA', 'attachmentLinks', 'closureReason'];
@@ -797,7 +798,7 @@ module.exports = {
   getAllUsers,
   createUser,
   deleteUser,
-  updatePassword,
+  updateUserPassword,
   // Projects
   getAllProjects,
   getProjectById,

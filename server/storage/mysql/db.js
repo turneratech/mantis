@@ -1,24 +1,27 @@
 const mysql = require('mysql2/promise');
+const deploymentConfig = require('../../config/deployment.config');
 
 let pool = null;
 
-// Create connection pool
 const createPool = () => {
   if (pool) return pool;
-  
+
+  const db = deploymentConfig.getDatabaseConfig().mysql;
+
   pool = mysql.createPool({
-    host: process.env.DB_HOST || 'localhost',
-    port: process.env.DB_PORT || 3306,
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'bugtracker',
+    host: db.host,
+    port: db.port,
+    user: db.user,
+    password: db.password,
+    database: db.database,
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0,
     enableKeepAlive: true,
-    keepAliveInitialDelay: 0
+    keepAliveInitialDelay: 0,
+    ssl: db.ssl ? { rejectUnauthorized: false } : undefined
   });
-  
+
   return pool;
 };
 

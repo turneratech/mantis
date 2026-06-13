@@ -16,49 +16,88 @@ import Footer from './components/Footer';
 import ChangePassword from './components/ChangePassword';
 import ReportGenerator from './components/ReportGenerator';
 import EmailConfig from './components/EmailConfig';
+import DeploymentConfig from './components/DeploymentConfig';
+import SetupWizard from './components/SetupWizard';
+import { LicenseProvider } from './contexts/LicenseContext';
+import { UpgradePrompt } from './components/common/UpgradePrompt';
 
+axios.defaults.baseURL = '/mantis';
 
-// For subdirectory deployment
-axios.defaults.baseURL = '/bugtracker';
-
-// Auth Context
 const AuthContext = createContext(null);
-
 export const useAuth = () => useContext(AuthContext);
 
-// Axios interceptor for auth
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Helper function to check if user has elevated privileges
-const hasElevatedPrivileges = (user) => {
-  return user && (user.role === 'godmode' || user.role === 'admin');
-};
+const hasElevatedPrivileges = (user) =>
+  user && (user.role === 'godmode' || user.role === 'admin');
 
-// Protected Route Component
 const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { user, loading } = useAuth();
-  
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
-  
-  if (!user) {
-    return <Navigate to="/login" />;
-  }
 
-  // adminOnly routes are accessible by both admin and godmode roles
-  if (adminOnly && !hasElevatedPrivileges(user)) {
-    return <Navigate to="/" />;
-  }
-  
+  if (loading) return <div className="loading">Loading...</div>;
+  if (!user) return <Navigate to="/login" />;
+  if (adminOnly && !hasElevatedPrivileges(user)) return <Navigate to="/" />;
   return children;
 };
+
+function AppRoutes() {
+  const { user } = useAuth();
+  const [setup, setSetup] = useState({ loading: true, needsSetup: false });
+
+  useEffect(() => {
+    if (!user || !hasElevatedPrivileges(user)) {
+      setSetup({ loading: false, needsSetup: false });
+      return;
+    }
+    axios.get('/api/deployment/setup-status')
+      .then(res => setSetup({ loading: false, needsSetup: res.data.needsSetup === true }))
+      .catch(() => setSetup({ loading: false, needsSetup: false }));
+  }, [user]);
+
+  if (setup.loading) return <div className="loading">Loading…</div>;
+
+  if (setup.needsSetup && hasElevatedPrivileges(user)) {
+    return <SetupWizard onComplete={() => setSetup({ loading: false, needsSetup: false })} />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginRoute />} />
+
+      <Route path="/" element={
+        <ProtectedRoute>
+          {hasElevatedPrivileges(user) ? <AdminDashboard /> : <Dashboard />}
+        </ProtectedRoute>
+      } />
+
+      <Route path="/projects" element={<ProtectedRoute><ProjectList /></ProtectedRoute>} />
+      <Route path="/projects/new" element={<ProtectedRoute adminOnly><ProjectForm /></ProtectedRoute>} />
+      <Route path="/projects/:projectId" element={<ProtectedRoute><ProjectDetail /></ProtectedRoute>} />
+      <Route path="/projects/:projectId/edit" element={<ProtectedRoute adminOnly><ProjectForm /></ProtectedRoute>} />
+
+      <Route path="/projects/:projectKey/bugs" element={<ProtectedRoute><BugList /></ProtectedRoute>} />
+      <Route path="/projects/:projectKey/bugs/new" element={<ProtectedRoute><BugForm /></ProtectedRoute>} />
+      <Route path="/projects/:projectKey/bugs/:bugId" element={<ProtectedRoute><BugDetail /></ProtectedRoute>} />
+      <Route path="/projects/:projectKey/bugs/:bugId/edit" element={<ProtectedRoute><BugForm /></ProtectedRoute>} />
+
+      <Route path="/my-bugs" element={<ProtectedRoute><BugList showMyBugs /></ProtectedRoute>} />
+      <Route path="/users" element={<ProtectedRoute adminOnly><UserManagement /></ProtectedRoute>} />
+      <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute adminOnly><ReportGenerator /></ProtectedRoute>} />
+      <Route path="/email-config" element={<ProtectedRoute adminOnly><EmailConfig /></ProtectedRoute>} />
+      <Route path="/deployment" element={<ProtectedRoute adminOnly><DeploymentConfig /></ProtectedRoute>} />
+    </Routes>
+  );
+}
+
+function LoginRoute() {
+  const { user } = useAuth();
+  return user ? <Navigate to="/" /> : <Login />;
+}
 
 function App() {
   const [user, setUser] = useState(null);
@@ -68,14 +107,8 @@ function App() {
     const token = localStorage.getItem('token');
     if (token) {
       axios.get('/api/auth/me')
-        .then(res => {
-          setUser(res.data);
-          setLoading(false);
-        })
-        .catch(() => {
-          localStorage.removeItem('token');
-          setLoading(false);
-        });
+        .then(res => { setUser(res.data); setLoading(false); })
+        .catch(() => { localStorage.removeItem('token'); setLoading(false); });
     } else {
       setLoading(false);
     }
@@ -95,103 +128,18 @@ function App() {
 
   return (
     <AuthContext.Provider value={{ user, login, logout, loading }}>
-      <BrowserRouter basename="/bugtracker">
-        <div className="app">
-          {user && <Navbar />}
-          <main className="main-content">
-            <Routes>
-              <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
-              
-              {/* Dashboard - AdminDashboard for godmode/admin, regular Dashboard for users */}
-              <Route path="/" element={
-                <ProtectedRoute>
-                  {hasElevatedPrivileges(user) ? <AdminDashboard /> : <Dashboard />}
-                </ProtectedRoute>
-              } />
-
-              {/* Projects */}
-              <Route path="/projects" element={
-                <ProtectedRoute>
-                  <ProjectList />
-                </ProtectedRoute>
-              } />
-              <Route path="/projects/new" element={
-                <ProtectedRoute adminOnly>
-                  <ProjectForm />
-                </ProtectedRoute>
-              } />
-              <Route path="/projects/:projectId" element={
-                <ProtectedRoute>
-                  <ProjectDetail />
-                </ProtectedRoute>
-              } />
-              <Route path="/projects/:projectId/edit" element={
-                <ProtectedRoute adminOnly>
-                  <ProjectForm />
-                </ProtectedRoute>
-              } />
-
-              {/* Bugs */}
-              <Route path="/projects/:projectKey/bugs" element={
-                <ProtectedRoute>
-                  <BugList />
-                </ProtectedRoute>
-              } />
-              <Route path="/projects/:projectKey/bugs/new" element={
-                <ProtectedRoute>
-                  <BugForm />
-                </ProtectedRoute>
-              } />
-              <Route path="/projects/:projectKey/bugs/:bugId" element={
-                <ProtectedRoute>
-                  <BugDetail />
-                </ProtectedRoute>
-              } />
-              <Route path="/projects/:projectKey/bugs/:bugId/edit" element={
-                <ProtectedRoute>
-                  <BugForm />
-                </ProtectedRoute>
-              } />
-
-              {/* My Bugs */}
-              <Route path="/my-bugs" element={
-                <ProtectedRoute>
-                  <BugList showMyBugs />
-                </ProtectedRoute>
-              } />
-
-              {/* User Management - accessible by admin and godmode */}
-              <Route path="/users" element={
-                <ProtectedRoute adminOnly>
-                  <UserManagement />
-                </ProtectedRoute>
-              } />
-              
-              {/* Change Password */}
-              <Route path="/change-password" element={
-                <ProtectedRoute>
-                  <ChangePassword />
-                </ProtectedRoute>
-              } />
-
-              {/* Report Generator - accessible by admin and godmode */}
-              <Route path="/reports" element={
-                <ProtectedRoute adminOnly>
-                  <ReportGenerator />
-                </ProtectedRoute>
-              } />
-
-	      {/*Email Config only for Admin or Godmode   */}
-              <Route path="/email-config" element={
-                <ProtectedRoute adminOnly>
-                  <EmailConfig />
-                </ProtectedRoute>
-              } />
-            </Routes>
-          </main>
-          {user && <Footer />}
-        </div>
-      </BrowserRouter>
+      <LicenseProvider>
+        <BrowserRouter basename="/mantis">
+          <div className="app">
+            {user && <Navbar />}
+            <main className="main-content">
+              <AppRoutes />
+            </main>
+            {user && <Footer />}
+          </div>
+          <UpgradePrompt />
+        </BrowserRouter>
+      </LicenseProvider>
     </AuthContext.Provider>
   );
 }

@@ -8,10 +8,23 @@
 const express = require('express');
 const router = express.Router();
 
-// Correct imports matching your project structure
-const { query } = require('../storage/mysql/db');
+const storage = require('../storage');
+const getSqlDb = require('../storage/sqlDb');
 const emailService = require('../services/emailService');
 const { authMiddleware } = require('../middleware/auth');
+
+const query = (...args) => getSqlDb().query(...args);
+
+const requireSqlStorage = (req, res, next) => {
+  if (!storage.isSqlStorage()) {
+    return res.status(503).json({
+      error: 'Email features require MySQL or PostgreSQL. CSV mode does not support email configuration.'
+    });
+  }
+  next();
+};
+
+router.use(requireSqlStorage);
 
 // Helper to check admin/godmode
 const hasElevatedPrivileges = (user) => {
@@ -38,7 +51,7 @@ router.get('/config', authMiddleware, async (req, res) => {
       ...c,
       smtp_password: '********',
       logo_url: c.logo_url || null,
-      company_name: c.company_name || 'BugTracker'
+      company_name: c.company_name || 'Mantis'
     }));
 
     res.json(maskedConfigs);
@@ -63,7 +76,7 @@ router.patch('/config/logo', authMiddleware, async (req, res) => {
         UPDATE email_config 
         SET logo_url = ?, company_name = ?
         WHERE is_active = TRUE
-      `, [logo_url || null, company_name || 'BugTracker']);
+      `, [logo_url || null, company_name || 'Mantis']);
 
       res.json({ success: true, message: 'Logo settings updated' });
     } catch (updateErr) {
@@ -71,7 +84,7 @@ router.patch('/config/logo', authMiddleware, async (req, res) => {
       if (updateErr.message.includes('Unknown column')) {
         res.status(400).json({ 
           error: 'Logo columns not found. Please run the database migration first.',
-          migration: "ALTER TABLE email_config ADD COLUMN logo_url VARCHAR(500) DEFAULT NULL, ADD COLUMN company_name VARCHAR(100) DEFAULT 'BugTracker';"
+          migration: "ALTER TABLE email_config ADD COLUMN logo_url VARCHAR(500) DEFAULT NULL, ADD COLUMN company_name VARCHAR(100) DEFAULT 'Mantis';"
         });
       } else {
         throw updateErr;
@@ -126,7 +139,7 @@ router.post('/config', authMiddleware, async (req, res) => {
       if (logo_url !== undefined || company_name !== undefined) {
         try {
           await query(`UPDATE email_config SET logo_url = ?, company_name = ? WHERE id = ?`, 
-            [logo_url || null, company_name || 'BugTracker', id]);
+            [logo_url || null, company_name || 'Mantis', id]);
         } catch (logoErr) {
           console.log('[Email Config] Logo columns not yet added to database - skipping logo update');
         }
@@ -154,7 +167,7 @@ router.post('/config', authMiddleware, async (req, res) => {
           INSERT INTO email_config 
           (config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, created_by, logo_url, company_name)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, req.user.id, logo_url || null, company_name || 'BugTracker']);
+        `, [config_name, smtp_host, smtp_port, smtp_secure, smtp_user, smtp_password, from_email, from_name, is_active, req.user.id, logo_url || null, company_name || 'Mantis']);
       } catch (insertErr) {
         // Fall back to basic insert without logo columns
         await query(`

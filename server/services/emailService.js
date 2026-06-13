@@ -11,9 +11,16 @@
 
 const nodemailer = require('nodemailer');
 const cron = require('node-cron');
+const storage = require('../storage');
 
-// Import query function matching your project structure
-const { query } = require('../storage/mysql/db');
+const query = async (sql, params = []) => {
+  if (!storage.isSqlStorage()) {
+    const err = new Error('Email service requires MySQL or PostgreSQL');
+    err.code = 'EMAIL_STORAGE_UNAVAILABLE';
+    throw err;
+  }
+  return require('../storage/sqlDb')().query(sql, params);
+};
 
 class EmailService {
   constructor() {
@@ -57,6 +64,10 @@ class EmailService {
       return true;
 
     } catch (error) {
+      if (error.code === 'EMAIL_STORAGE_UNAVAILABLE') {
+        console.log(`[EmailService] ${error.message}`);
+        return false;
+      }
       console.error('[EmailService] SMTP initialization error:', error.message);
       this.transporter = null;
       this.isInitialized = false;
@@ -182,7 +193,11 @@ class EmailService {
       return reports;
 
     } catch (error) {
-      console.error('[EmailService] Error loading scheduled reports:', error);
+      if (error.code === 'EMAIL_STORAGE_UNAVAILABLE') {
+        console.log(`[EmailService] ${error.message}`);
+        return [];
+      }
+      console.error('[EmailService] Error loading scheduled reports:', error.message);
       return [];
     }
   }
@@ -869,7 +884,7 @@ Write PM commentary as JSON:
     
     // Get logo and company name from config
     const logoUrl = emailConfig.logo_url || null;
-    const companyName = emailConfig.company_name || 'BugTracker';
+    const companyName = emailConfig.company_name || 'Mantis';
 
     // Generate chart URLs
     const statusChartUrl = this.generateStatusPieChart(currentStatus);
@@ -1444,7 +1459,7 @@ Write PM commentary as JSON:
           <tr>
             <td style="padding: 25px 30px; background: #f8fafc; border-top: 1px solid #e2e8f0;">
               <p style="color: #64748b; margin: 0 0 10px 0;">Thank you for your continued effort in maintaining product quality.</p>
-              <p style="color: #1e293b; margin: 0;">Best regards,<br><strong>BugTracker System</strong></p>
+              <p style="color: #1e293b; margin: 0;">Best regards,<br><strong>Mantis System</strong></p>
               <p style="color: #94a3b8; margin: 15px 0 0 0; font-size: 12px;">Generated: ${new Date().toLocaleString()}</p>
             </td>
           </tr>
@@ -1452,7 +1467,7 @@ Write PM commentary as JSON:
           <!-- Footer Bar -->
           <tr>
             <td style="padding: 15px 30px; background: #1e293b; text-align: center;">
-              <p style="color: #94a3b8; margin: 0; font-size: 12px;">This is an automated report from BugTracker</p>
+              <p style="color: #94a3b8; margin: 0; font-size: 12px;">This is an automated report from Mantis</p>
               <p style="color: #64748b; margin: 5px 0 0 0; font-size: 11px;">CONFIDENTIAL - FOR INTERNAL USE ONLY</p>
             </td>
           </tr>

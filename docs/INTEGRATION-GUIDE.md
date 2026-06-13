@@ -1,6 +1,6 @@
-# BugTracker File Attachments - Complete Integration Guide
+# Mantis File Attachments - Complete Integration Guide
 
-This guide walks you through adding drag-and-drop file attachments to BugTracker with hybrid storage support (S3, SharePoint, Local).
+This guide walks you through adding drag-and-drop file attachments to Mantis with hybrid storage support (S3, SharePoint, Local).
 
 ## Architecture Overview
 
@@ -57,8 +57,8 @@ This guide walks you through adding drag-and-drop file attachments to BugTracker
 # SSH into your EC2
 ssh -i your-key.pem ec2-user@3.128.196.248
 
-# Copy module to bugtracker
-cd /var/www/html/bugtracker
+# Copy module to mantis
+cd /var/www/html/mantis
 mkdir -p hybrid-storage
 # Upload or copy the hybrid-storage folder here
 
@@ -70,7 +70,7 @@ cd ..
 
 Your folder structure should be:
 ```
-/var/www/html/bugtracker/
+/var/www/html/mantis/
 ├── client/
 ├── server/
 ├── hybrid-storage/        ← NEW
@@ -88,7 +88,7 @@ Your folder structure should be:
 ### STEP 2: Add Attachments Column to Database
 
 ```bash
-mysql -u bugtracker -p bugtracker
+mysql -u mantis -p mantis
 ```
 
 ```sql
@@ -106,7 +106,7 @@ EXIT;
 ### STEP 3: Install Backend Dependencies
 
 ```bash
-cd /var/www/html/bugtracker
+cd /var/www/html/mantis
 npm install multer uuid --save
 ```
 
@@ -115,17 +115,17 @@ npm install multer uuid --save
 ### STEP 4: Create Attachments Route
 
 ```bash
-nano /var/www/html/bugtracker/server/routes/attachments.js
+nano /var/www/html/mantis/server/routes/attachments.js
 ```
 
-Copy the contents of `/home/claude/bugtracker-backend/attachments.js` into this file.
+Copy the contents of `/home/claude/mantis-backend/attachments.js` into this file.
 
 ---
 
 ### STEP 5: Register Route in Server
 
 ```bash
-nano /var/www/html/bugtracker/server/index.js
+nano /var/www/html/mantis/server/index.js
 ```
 
 Add these lines:
@@ -147,7 +147,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 ### STEP 6: Update Environment Variables
 
 ```bash
-nano /var/www/html/bugtracker/.env
+nano /var/www/html/mantis/.env
 ```
 
 Add:
@@ -161,7 +161,7 @@ Add:
 DEFAULT_STORAGE=local
 
 # AWS S3 (uncomment to enable)
-# S3_BUCKET=bugtracker-attachments-greenfield
+# S3_BUCKET=mantis-attachments-greenfield
 # AWS_REGION=us-east-2
 # AWS_ACCESS_KEY_ID=your-access-key        # Not needed if using IAM role
 # AWS_SECRET_ACCESS_KEY=your-secret-key    # Not needed if using IAM role
@@ -171,7 +171,7 @@ DEFAULT_STORAGE=local
 # AZURE_CLIENT_SECRET=your-client-secret
 # AZURE_TENANT_ID=your-tenant-id
 # SHAREPOINT_DOMAIN=company.sharepoint.com
-# SHAREPOINT_SITE=BugTracker
+# SHAREPOINT_SITE=Mantis
 ```
 
 ---
@@ -179,8 +179,8 @@ DEFAULT_STORAGE=local
 ### STEP 7: Create Uploads Directory
 
 ```bash
-mkdir -p /var/www/html/bugtracker/uploads
-chmod 755 /var/www/html/bugtracker/uploads
+mkdir -p /var/www/html/mantis/uploads
+chmod 755 /var/www/html/mantis/uploads
 ```
 
 ---
@@ -189,8 +189,8 @@ chmod 755 /var/www/html/bugtracker/uploads
 
 ```bash
 # Copy component files to client
-cp /path/to/FileUpload.js /var/www/html/bugtracker/client/src/components/
-cp /path/to/AttachmentList.js /var/www/html/bugtracker/client/src/components/
+cp /path/to/FileUpload.js /var/www/html/mantis/client/src/components/
+cp /path/to/AttachmentList.js /var/www/html/mantis/client/src/components/
 ```
 
 ---
@@ -198,7 +198,7 @@ cp /path/to/AttachmentList.js /var/www/html/bugtracker/client/src/components/
 ### STEP 9: Add CSS Styles
 
 ```bash
-nano /var/www/html/bugtracker/client/src/styles.css
+nano /var/www/html/mantis/client/src/styles.css
 ```
 
 Append the contents of `attachments.css` to your styles.css file.
@@ -208,7 +208,7 @@ Append the contents of `attachments.css` to your styles.css file.
 ### STEP 10: Update BugForm.js
 
 ```bash
-nano /var/www/html/bugtracker/client/src/components/BugForm.js
+nano /var/www/html/mantis/client/src/components/BugForm.js
 ```
 
 **Add imports at top:**
@@ -262,7 +262,7 @@ setCreatedBugId(bugId);
 ### STEP 11: Update BugDetail.js
 
 ```bash
-nano /var/www/html/bugtracker/client/src/components/BugDetail.js
+nano /var/www/html/mantis/client/src/components/BugDetail.js
 ```
 
 **Add imports:**
@@ -329,18 +329,18 @@ const handleDeleteAttachment = (deletedAttachment) => {
 
 ```bash
 # Rebuild frontend
-cd /var/www/html/bugtracker/client
+cd /var/www/html/mantis/client
 npm run build
 
 # Restart backend
-pm2 restart bugtracker
+pm2 restart mantis
 ```
 
 ---
 
 ### STEP 13: Test the Integration
 
-1. **Open browser**: http://3.128.196.248/bugtracker
+1. **Open browser**: http://3.128.196.248/mantis
 2. **Login** as admin
 3. **Edit an existing bug** (or create new and then edit)
 4. **Drag & drop** a file onto the upload zone
@@ -356,7 +356,7 @@ pm2 restart bugtracker
 ### 1. Create S3 Bucket
 
 ```bash
-aws s3 mb s3://bugtracker-attachments-greenfield --region us-east-2
+aws s3 mb s3://mantis-attachments-greenfield --region us-east-2
 ```
 
 ### 2. Create IAM Policy
@@ -374,8 +374,8 @@ aws s3 mb s3://bugtracker-attachments-greenfield --region us-east-2
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::bugtracker-attachments-greenfield",
-        "arn:aws:s3:::bugtracker-attachments-greenfield/*"
+        "arn:aws:s3:::mantis-attachments-greenfield",
+        "arn:aws:s3:::mantis-attachments-greenfield/*"
       ]
     }
   ]
@@ -392,14 +392,14 @@ aws s3 mb s3://bugtracker-attachments-greenfield --region us-east-2
 
 ```env
 DEFAULT_STORAGE=s3
-S3_BUCKET=bugtracker-attachments-greenfield
+S3_BUCKET=mantis-attachments-greenfield
 AWS_REGION=us-east-2
 ```
 
 ### 5. Restart
 
 ```bash
-pm2 restart bugtracker
+pm2 restart mantis
 ```
 
 ---
@@ -409,7 +409,7 @@ pm2 restart bugtracker
 ### 1. Register Azure AD Application
 
 1. Azure Portal → Azure Active Directory → App registrations → New
-2. Name: BugTracker
+2. Name: Mantis
 3. Add API permissions: `Sites.ReadWrite.All`, `Files.ReadWrite.All`
 4. Create client secret
 5. Note: Client ID, Tenant ID, Client Secret
@@ -422,13 +422,13 @@ AZURE_CLIENT_ID=your-client-id
 AZURE_CLIENT_SECRET=your-client-secret
 AZURE_TENANT_ID=your-tenant-id
 SHAREPOINT_DOMAIN=company.sharepoint.com
-SHAREPOINT_SITE=BugTracker
+SHAREPOINT_SITE=Mantis
 ```
 
 ### 3. Restart
 
 ```bash
-pm2 restart bugtracker
+pm2 restart mantis
 ```
 
 ---
@@ -441,8 +441,8 @@ pm2 restart bugtracker
 - Check .env has valid configuration
 
 ### Files not uploading
-- Check `/var/www/html/bugtracker/uploads` exists and is writable
-- Check PM2 logs: `pm2 logs bugtracker`
+- Check `/var/www/html/mantis/uploads` exists and is writable
+- Check PM2 logs: `pm2 logs mantis`
 - Verify multer is installed: `npm list multer`
 
 ### S3 permission denied
@@ -460,7 +460,7 @@ pm2 restart bugtracker
 ## File Structure After Integration
 
 ```
-/var/www/html/bugtracker/
+/var/www/html/mantis/
 ├── client/
 │   └── src/
 │       └── components/

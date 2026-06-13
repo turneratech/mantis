@@ -1,7 +1,7 @@
 /**
- * BugTracker Server
+ * Mantis Server
  * 
- * Multi-project bug tracking system with automatic storage backend detection.
+ * Mantis — multi-project bug tracking with automatic storage backend detection.
  * Supports both MySQL and CSV storage backends.
  */
 
@@ -11,6 +11,12 @@ const path = require('path');
 const dotenv = require('dotenv');
 const emailRoutes = require('./routes/email');
 const emailService = require('./services/emailService');
+const licenseService = require('./services/licenseService');
+const licenseRoutes = require('./routes/license');
+const deploymentRoutes = require('./routes/deployment');
+const { attachLicenseInfo } = require('./middleware/licenseValidator');
+const webhookService = require('./services/webhookService');
+const fileStorageService = require('./services/fileStorageService');
 
 // Load environment variables
 dotenv.config();
@@ -47,7 +53,14 @@ app.use((req, res, next) => {
 });
 
 // Serve uploaded files (for local storage)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));  // NEW
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Brand assets (logos) — repo root imgs/ folder, served at /mantis/imgs
+app.use('/mantis/imgs', express.static(path.join(__dirname, '../../imgs')));
+app.use('/imgs', express.static(path.join(__dirname, '../../imgs')));
+
+// Attach license info to every request (cached, non-blocking)
+app.use(attachLicenseInfo);
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -57,8 +70,15 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/attachments', attachmentsRoutes);  // NEW
 app.use('/api/webhooks', githubWebhook);
 app.use('/api/email', emailRoutes);
+app.use('/api/license', licenseRoutes);
+app.use('/api/deployment', deploymentRoutes);
 
 async function initializeEmailService() {
+  if (!storage.isSqlStorage()) {
+    console.log('[EmailService] Skipped — scheduled email reports require MySQL or PostgreSQL (current: CSV)');
+    return;
+  }
+
   try {
     await emailService.initializeTransporter();
     await emailService.loadScheduledReports();
@@ -74,11 +94,19 @@ app.get('/api/health', async (req, res) => {
     const storageType = storage.getStorageType();
     const isConnected = await storage.getStorage().isConnected();
     
-    res.json({ 
+    const deploymentConfig = require('./config/deployment.config');
+    const fileStorage = fileStorageService.getFileStorage();
+
+    res.json({
       status: 'ok',
       storage: {
         type: storageType,
-        connected: isConnected
+        connected: isConnected,
+        provider: deploymentConfig.getDatabaseProvider()
+      },
+      fileStorage: {
+        default: fileStorage?.defaultProvider || 'local',
+        providers: fileStorage?.listProviders() || ['local']
       },
       timestamp: new Date().toISOString()
     });
@@ -95,11 +123,12 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Serve static files in production
+// Serve static files in production (app is built for /mantis base path)
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../client/build')));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/build/index.html'));
+  const clientBuild = path.join(__dirname, '../client/build');
+  app.use('/mantis', express.static(clientBuild));
+  app.get('/mantis/*', (req, res) => {
+    res.sendFile(path.join(clientBuild, 'index.html'));
   });
 }
 
@@ -107,14 +136,20 @@ if (process.env.NODE_ENV === 'production') {
 const startServer = async () => {
   console.log('');
   console.log('╔═══════════════════════════════════════════╗');
-  console.log('║         BugTracker Server v2.0            ║');
+  console.log('║         Mantis Server v2.0            ║');
   console.log('╚═══════════════════════════════════════════╝');
   console.log('');
   
   try {
     // Initialize storage (auto-detects MySQL or falls back to CSV)
     await storage.initializeStorage();
-    
+
+    fileStorageService.initFileStorage();
+    webhookService.loadPlugins();
+
+    // Initialize license service after storage is ready
+    await licenseService.initialize();
+
     console.log('');
     console.log(`Storage Type: ${storage.getStorageType().toUpperCase()}`);
     console.log('');

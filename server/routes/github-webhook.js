@@ -39,7 +39,7 @@ const fetchGitHubIps = () => {
     }
 
     const req = https.get('https://api.github.com/meta', {
-      headers: { 'User-Agent': 'BugTracker-Webhook' }
+      headers: { 'User-Agent': 'Mantis-Webhook' }
     }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);

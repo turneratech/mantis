@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../App';
+import logoSmall from '../utils/brandAssets';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -26,8 +27,8 @@ function Login() {
     <div className="login-container">
       <div className="card login-card">
         <div className="login-title">
-          <img src="/bugtracker/imgs/logo_small.png" alt="BugTracker" style={{ height: '100px', marginBottom: '10px' }} />
-          <h1>BugTracker</h1>
+          <img src={logoSmall} alt="Mantis" style={{ height: '100px', marginBottom: '10px' }} />
+          <h1>Mantis</h1>
           <p>Sign in to your account</p>
         </div>
 

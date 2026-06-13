@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="./imgs/logo_mid.png" alt="BugTracker Logo" width="120" height="120">
+  <img src="./imgs/logo_mid.png" alt="Mantis Logo" width="120" height="120">
 </p>
 
-<h1 align="center">BugTracker</h1>
+<h1 align="center">Mantis</h1>
 
 <p align="center">
-  <strong>A Modern, Multi-Project Bug Tracking System with Dual Storage Architecture</strong>
+  <strong>Mantis — A Modern, Multi-Project Bug Tracking Platform with Dual Storage Architecture</strong>
 </p>
 
 <p align="center">
@@ -30,7 +30,7 @@
 
 ## 📋 Overview
 
-**BugTracker** is a full-featured, enterprise-ready bug tracking system designed for software development teams. Built with a modern tech stack, it offers a clean dark-themed UI, multi-project support, role-based access control, and a flexible dual-storage architecture that automatically detects and uses either MySQL or CSV backends.
+**Mantis** is a full-featured, enterprise-ready bug tracking system designed for software development teams. Built with a modern tech stack, it offers a clean dark-themed UI, multi-project support, role-based access control, and a flexible dual-storage architecture that automatically detects and uses either MySQL or CSV backends.
 
 <p align="center">
   <img src="/imgs/dashboard_img.png" alt="Dashboard Screenshot" width="800">
@@ -80,7 +80,7 @@
 
 ### Dual Storage System
 
-BugTracker features a unique storage abstraction layer that automatically detects and uses the best available backend:
+Mantis features a unique storage abstraction layer that automatically detects and uses the best available backend:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -148,8 +148,8 @@ BugTracker features a unique storage abstraction layer that automatically detect
 
 ```bash
 # Clone and install
-git clone https://github.com/turneratech/bugtracker.git
-cd bugtracker
+git clone https://github.com/turneratech/mantis.git
+cd mantis
 npm run install-all
 
 # Start (auto-uses CSV storage)
@@ -160,14 +160,14 @@ npm run dev
 
 ```bash
 # 1. Clone repository
-git clone https://github.com/turneratech/bugtracker.git
-cd bugtracker
+git clone https://github.com/turneratech/mantis.git
+cd mantis
 
 # 2. Setup MySQL database
-mysql -u root -p -e "CREATE DATABASE bugtracker;"
-mysql -u root -p -e "CREATE USER 'bugtracker'@'localhost' IDENTIFIED BY 'your-password';"
-mysql -u root -p -e "GRANT ALL PRIVILEGES ON bugtracker.* TO 'bugtracker'@'localhost';"
-mysql -u bugtracker -p bugtracker < server/database/schema.sql
+mysql -u root -p -e "CREATE DATABASE mantis;"
+mysql -u root -p -e "CREATE USER 'mantis'@'localhost' IDENTIFIED BY 'your-password';"
+mysql -u root -p -e "GRANT ALL PRIVILEGES ON mantis.* TO 'mantis'@'localhost';"
+mysql -u mantis -p mantis < server/database/mantis.sql
 
 # 3. Configure environment
 cp .env.example .env
@@ -205,9 +205,9 @@ JWT_SECRET=your-super-secret-jwt-key-change-this
 # MySQL Configuration (optional - will use CSV if not configured)
 DB_HOST=localhost
 DB_PORT=3306
-DB_USER=bugtracker
+DB_USER=mantis
 DB_PASSWORD=your-password
-DB_NAME=bugtracker
+DB_NAME=mantis
 
 # Application Settings
 DEFAULT_ADMIN_PASSWORD=admin123
@@ -231,7 +231,7 @@ DEFAULT_ADMIN_PASSWORD=admin123
 ## 📁 Project Structure
 
 ```
-bugtracker/
+mantis/
 ├── client/                     # React Frontend
 │   ├── public/
 │   │   └── imgs/              # Static images
@@ -258,7 +258,7 @@ bugtracker/
 │
 ├── server/                     # Node.js Backend
 │   ├── database/
-│   │   └── schema.sql         # MySQL schema
+│   │   └── mantis.sql         # MySQL schema
 │   ├── data/                  # CSV storage (auto-created)
 │   │   ├── users.csv
 │   │   ├── projects.csv
@@ -481,6 +481,16 @@ To add a new backend (PostgreSQL, MongoDB, etc.):
 
 ## 🚢 Deployment
 
+Mantis is a **self-hosted, licensable** product. Configure your own database (MySQL, Supabase/PostgreSQL, CSV demo), file storage (S3, Azure, SharePoint, Supabase Storage), and outbound webhooks to sync with external systems.
+
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for the full guide and **Admin → Deployment** in the UI for connection testing.
+
+```bash
+cp .env.example .env   # configure providers
+cd hybrid-storage && npm install && cd ..
+npm run dev
+```
+
 ### AWS EC2 Deployment
 
 #### 1. Launch EC2 Instance
@@ -510,8 +520,8 @@ sudo npm install -g pm2
 ```bash
 # Clone and setup
 cd /var/www
-git clone https://github.com/turneratech/bugtracker.git
-cd bugtracker
+git clone https://github.com/turneratech/mantis.git
+cd mantis
 
 npm run install-all
 cp .env.example .env
@@ -521,7 +531,7 @@ nano .env  # Configure settings
 cd client && npm run build && cd ..
 
 # Start with PM2
-pm2 start server/index.js --name bugtracker
+pm2 start server/index.js --name mantis
 pm2 save && pm2 startup
 ```
 
@@ -533,7 +543,7 @@ server {
     server_name your-domain.com;
 
     location / {
-        root /var/www/bugtracker/client/build;
+        root /var/www/mantis/client/build;
         try_files $uri $uri/ /index.html;
     }
 
@@ -558,9 +568,9 @@ services:
       - "5000:5000"
     environment:
       - DB_HOST=db
-      - DB_USER=bugtracker
+      - DB_USER=mantis
       - DB_PASSWORD=password
-      - DB_NAME=bugtracker
+      - DB_NAME=mantis
     depends_on:
       - db
   
@@ -568,8 +578,8 @@ services:
     image: mysql:8
     environment:
       - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=bugtracker
-      - MYSQL_USER=bugtracker
+      - MYSQL_DATABASE=mantis
+      - MYSQL_USER=mantis
       - MYSQL_PASSWORD=password
     volumes:
       - mysql_data:/var/lib/mysql
@@ -648,8 +658,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📧 Support
 
-- **Documentation**: [Wiki](https://github.com/turneratech/bugtracker/wiki)
-- **Issues**: [GitHub Issues](https://github.com/turneratech/bugtracker/issues)
+- **Documentation**: [Wiki](https://github.com/turneratech/mantis/wiki)
+- **Issues**: [GitHub Issues](https://github.com/turneratech/mantis/issues)
 - **Email**: support@turneratech.com
 
 ---

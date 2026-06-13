@@ -821,10 +821,10 @@ const isConnected = async () => {
 };
 
 const initialize = async () => {
-  // Check if tables exist, if not they need to run schema.sql
+  // Check if tables exist, if not they need to run mantis.sql
   const dbExists = await checkDatabase();
   if (!dbExists) {
-    console.log('MySQL tables not found. Please run: mysql -u root -p bugtracker < server/database/schema.sql');
+    console.log('MySQL tables not found. Please run: mysql -u root -p mantis < server/database/mantis.sql');
   }
   return dbExists;
 };

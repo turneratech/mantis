@@ -1,56 +1,91 @@
 # Dependencies
 node_modules/
-client/node_modules/
+**/node_modules/
 
 # Build outputs
 client/build/
+build/
 dist/
+out/
+.next/
+.turbo/
+.parcel-cache/
 
-# Environment files
+# CRA / webpack cache
+.cache/
+**/.cache/
+.eslintcache
+
+# Environment & secrets (keep .env.example tracked)
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+*.pem
+*.key
+license.key
 
-# IDE
+# IDE & editors
 .idea/
 .vscode/
 *.swp
 *.swo
+*.code-workspace
+.cursor/
+
+# Local AI / tooling
+.claude/
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
+ehthumbs.db
 
 # Logs
 logs/
 *.log
 npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
 # Runtime data
 pids/
 *.pid
 *.seed
-*.min.js
 
-# Coverage
+# Generated / minified bundles (source lives in non-minified files)
+*.min.js
+*.min.css
+
+# Test coverage
 coverage/
 .nyc_output/
+.coverage/
 
-# Uploads (local storage)
+# Uploads (local attachment storage)
 uploads/
-# Runtime deployment overrides (secrets — do not commit)
+
+# Runtime deployment & CSV data (created on first run)
 server/data/deployment.local.json
+server/data/*.csv
+server/data/bugs_*.csv
+
+# Duplicate / legacy static paths (use imgs/ or client/src/assets/)
+client/public/mantis/
+
+# Archived brand assets
+imgs/old/
+
+# Ad-hoc project dumps
+structure.txt
 
 # Temporary files
 tmp/
 temp/
 *.tmp
+*.bak
+*~
 
-# PM2
+# PM2 local config (may contain secrets)
 ecosystem.config.js
-
-# Testing
-.coverage/
-
-# Local tooling
-.claude/

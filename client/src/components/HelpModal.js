@@ -344,12 +344,12 @@ function HelpModal({ isOpen, onClose }) {
         return (
           <>
             <h2 style={styles.sectionTitle}>🚀 Getting Started</h2>
-            <p style={styles.sectionSubtitle}>Welcome to BugTracker! Let's get you up and running quickly.</p>
+            <p style={styles.sectionSubtitle}>Welcome to Mantis! Let's get you up and running quickly.</p>
             
             <div style={styles.card}>
-              <h3 style={styles.cardTitle}>What is BugTracker?</h3>
+              <h3 style={styles.cardTitle}>What is Mantis?</h3>
               <p style={styles.cardText}>
-                BugTracker is a powerful yet simple bug tracking system designed to help teams efficiently 
+                Mantis is a powerful yet simple bug tracking system designed to help teams efficiently 
                 track, manage, and resolve software issues. It supports multiple projects, customizable 
                 workflows, and seamless team collaboration.
               </p>
@@ -739,7 +739,7 @@ function HelpModal({ isOpen, onClose }) {
         return (
           <>
             <h2 style={styles.sectionTitle}>📤 Git Commit Guidelines</h2>
-            <p style={styles.sectionSubtitle}>Required commit message format for BugTracker integration.</p>
+            <p style={styles.sectionSubtitle}>Required commit message format for Mantis integration.</p>
             
             {/* Download PDF Button */}
             <div style={{
@@ -758,7 +758,7 @@ function HelpModal({ isOpen, onClose }) {
                 <div style={{color: '#94a3b8', fontSize: '13px'}}>Download the complete commit message guidelines PDF</div>
               </div>
               <a 
-                href="/bugtracker/docs/Turneratech_Commit_Message_Guidelines.pdf" 
+                href="/mantis/docs/Turneratech_Commit_Message_Guidelines.pdf" 
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -900,7 +900,7 @@ function HelpModal({ isOpen, onClose }) {
         return (
           <>
             <h2 style={styles.sectionTitle}>💡 Tips & Tricks</h2>
-            <p style={styles.sectionSubtitle}>Get the most out of BugTracker with these pro tips.</p>
+            <p style={styles.sectionSubtitle}>Get the most out of Mantis with these pro tips.</p>
             
             <div style={styles.tipCard}>
               <span style={styles.tipIcon}>📝</span>
@@ -1025,7 +1025,7 @@ function HelpModal({ isOpen, onClose }) {
           <div style={styles.headerContent}>
             <h1 style={styles.title}>
               <span>📖</span>
-              BugTracker User Manual
+              Mantis User Manual
             </h1>
             <p style={styles.subtitle}>Everything you need to know to track and manage bugs effectively</p>
           </div>

@@ -17,197 +17,92 @@ const { v4: uuidv4 } = require('uuid');
 // AUTH MIDDLEWARE
 // ============================================
 const { authMiddleware } = require('../middleware/auth');
+const deploymentConfig = require('../config/deployment.config');
+const { getFileStorage, getFileStorageError } = require('../services/fileStorageService');
 
 
 // ============================================
 // DIRECT MYSQL UPDATE (bypasses storage module issues)
 // ============================================
-const updateBugAttachments = async (bugId, attachmentsJson) => {
-  try {
-    const mysql = require('mysql2/promise');
-    const pool = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'bugtracker',
-      waitForConnections: true,
-      connectionLimit: 5
-    });
-    
-    const column = await detectBugIdColumn(pool);
-    await pool.execute(
-      `UPDATE bugs SET attachments = ?, updated_at = NOW() WHERE ${column} = ?`,
-      [attachmentsJson, bugId]
-    );
-    
-    await pool.end();
-    console.log('[Attachments] Database updated for bug:', bugId);
-    return true;
-  } catch (err) {
-    console.error('[Attachments] Direct MySQL update failed:', err.message);
-    return false;
-  }
-};
-
 // Cache the bug ID column name
 let bugIdColumn = null;
 
-// Detect the correct bug ID column name
-const detectBugIdColumn = async (pool) => {
+const detectBugIdColumn = async () => {
   if (bugIdColumn) return bugIdColumn;
-  
+
   try {
-    const [columns] = await pool.execute(
-      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'bugs'",
-      [process.env.DB_NAME || 'bugtracker']
-    );
-    
-    const columnNames = columns.map(c => c.COLUMN_NAME.toLowerCase());
-    
-    // Check for common bug ID column names
-    if (columnNames.includes('bug_id')) {
-      bugIdColumn = 'bug_id';
-    } else if (columnNames.includes('bugid')) {
-      bugIdColumn = 'bugId';
-    } else if (columnNames.includes('id')) {
-      bugIdColumn = 'id';
-    } else {
-      // Default fallback
-      bugIdColumn = 'bug_id';
+    const storageMod = require('../storage');
+    const getSqlDb = require('../storage/sqlDb');
+    const { query } = getSqlDb();
+    const isPostgres = storageMod.getStorageType() === 'postgres';
+
+    if (isPostgres) {
+      const rows = await query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = 'bugs' AND column_name IN ('bug_id', 'bugid', 'id')`
+      );
+      const names = rows.map(c => (c.column_name || '').toLowerCase());
+      if (names.includes('bug_id')) bugIdColumn = 'bug_id';
+      else if (names.includes('bugid')) bugIdColumn = 'bugId';
+      else bugIdColumn = 'id';
+      return bugIdColumn;
     }
-    
-    console.log('[Attachments] Detected bug ID column:', bugIdColumn);
+
+    const dbName = deploymentConfig.getDatabaseConfig().mysql.database;
+    const columns = await query(
+      "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'bugs'",
+      [dbName]
+    );
+
+    const columnNames = columns.map(c => c.COLUMN_NAME.toLowerCase());
+    if (columnNames.includes('bug_id')) bugIdColumn = 'bug_id';
+    else if (columnNames.includes('bugid')) bugIdColumn = 'bugId';
+    else if (columnNames.includes('id')) bugIdColumn = 'id';
+    else bugIdColumn = 'bug_id';
+
     return bugIdColumn;
-  } catch (err) {
-    console.error('[Attachments] Column detection failed:', err.message);
+  } catch {
     return 'bug_id';
   }
 };
 
-// Get bug by ID directly from MySQL
 const getBugById = async (bugId) => {
   try {
-    const mysql = require('mysql2/promise');
-    const pool = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'bugtracker',
-      waitForConnections: true,
-      connectionLimit: 5
-    });
-    
-    const column = await detectBugIdColumn(pool);
-    const [rows] = await pool.execute(`SELECT * FROM bugs WHERE ${column} = ?`, [bugId]);
-    
-    await pool.end();
-    
-    return rows.length > 0 ? rows[0] : null;
+    const storage = require('../storage');
+    return await storage.getBugById(bugId);
   } catch (err) {
     console.error('[Attachments] getBugById failed:', err.message);
     return null;
   }
 };
 
-// ============================================
-// STORAGE INITIALIZATION
-// ============================================
-
-let storage = null;
-let storageError = null;
-
-const initStorage = () => {
-  if (storage) return storage;
-  if (storageError) return null;
-  
+const updateBugAttachments = async (bugId, attachmentsJson) => {
   try {
-    // Find hybrid-storage module
-    let createStorage;
-    const possiblePaths = [
-      path.join(__dirname, '../../hybrid-storage/src'),
-      path.join(__dirname, '../hybrid-storage/src'),
-      path.join(__dirname, '../../hybrid-storage'),
-    ];
-    
-    for (const p of possiblePaths) {
-      try {
-        const module = require(p);
-        createStorage = module.createStorage;
-        if (createStorage) {
-          console.log('[Attachments] Found hybrid-storage at:', p);
-          break;
-        }
-      } catch (e) {
-        // Try next path
-      }
+    const storage = require('../storage');
+    if (storage.getStorageType() === 'csv') {
+      console.warn('[Attachments] Attachment metadata requires MySQL or PostgreSQL storage backend');
+      return false;
     }
-    
-    if (!createStorage) {
-      throw new Error('hybrid-storage module not found. Make sure hybrid-storage folder exists.');
-    }
-    
-    // Build config
-    const config = {
-      local: {
-        basePath: path.join(__dirname, '../../uploads'),
-        baseUrl: '/uploads'
-      }
-    };
-    
-    // Azure Blob Storage Configuration
-    if (process.env.AZURE_STORAGE_CONNECTION_STRING) {
-      console.log('[Attachments] Configuring Azure Blob with connection string');
-      config.azure = {
-        connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
-        containerName: process.env.AZURE_STORAGE_CONTAINER || 'bugtracker',
-        baseFolder: process.env.AZURE_STORAGE_FOLDER || 'attachments'
-      };
-    } else if (process.env.AZURE_BLOB_ENDPOINT && process.env.AZURE_SAS_TOKEN) {
-      console.log('[Attachments] Configuring Azure Blob with endpoint + SAS');
-      config.azure = {
-        blobEndpoint: process.env.AZURE_BLOB_ENDPOINT,
-        sasToken: process.env.AZURE_SAS_TOKEN,
-        containerName: process.env.AZURE_STORAGE_CONTAINER || 'bugtracker',
-        baseFolder: process.env.AZURE_STORAGE_FOLDER || 'attachments'
-      };
-    } else if (process.env.AZURE_STORAGE_ACCOUNT && process.env.AZURE_STORAGE_KEY) {
-      console.log('[Attachments] Configuring Azure Blob with account + key');
-      config.azure = {
-        accountName: process.env.AZURE_STORAGE_ACCOUNT,
-        accountKey: process.env.AZURE_STORAGE_KEY,
-        containerName: process.env.AZURE_STORAGE_CONTAINER || 'bugtracker',
-        baseFolder: process.env.AZURE_STORAGE_FOLDER || 'attachments'
-      };
-    }
-    
-    // Set default - Azure if configured, else local
-    if (process.env.DEFAULT_STORAGE) {
-      config.default = process.env.DEFAULT_STORAGE;
-    } else if (config.azure) {
-      config.default = 'azure';
-    } else {
-      config.default = 'local';
-    }
-    
-    console.log('[Attachments] Creating storage with config:', {
-      hasLocal: !!config.local,
-      hasAzure: !!config.azure,
-      default: config.default
-    });
-    
-    storage = createStorage(config);
-    console.log('[Attachments] Storage initialized. Providers:', storage.listProviders());
-    console.log('[Attachments] Default provider:', storage.defaultProvider);
-    
-    return storage;
-    
+    const getSqlDb = require('../storage/sqlDb');
+    const { query } = getSqlDb();
+    const column = await detectBugIdColumn();
+    await query(
+      `UPDATE bugs SET attachments = ?, updated_at = NOW() WHERE ${column} = ?`,
+      [attachmentsJson, bugId]
+    );
+    console.log('[Attachments] Database updated for bug:', bugId);
+    return true;
   } catch (err) {
-    console.error('[Attachments] Storage init error:', err.message);
-    console.error(err.stack);
-    storageError = err.message;
-    return null;
+    console.error('[Attachments] Update failed:', err.message);
+    return false;
   }
 };
+
+// ============================================
+// STORAGE (via centralized fileStorageService)
+// ============================================
+
+const initStorage = () => getFileStorage();
+const storageError = () => getFileStorageError();
 
 // Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, '../../uploads');
@@ -272,7 +167,7 @@ router.get('/providers', authMiddleware, (req, res) => {
     return res.json({ 
       providers: ['local'], 
       default: 'local',
-      error: storageError 
+      error: storageError() 
     });
   }
   
@@ -290,7 +185,7 @@ router.post('/:bugId', authMiddleware, upload.single('file'), async (req, res) =
   try {
     const storageInstance = initStorage();
     if (!storageInstance) {
-      return res.status(500).json({ error: 'Storage not available: ' + storageError });
+      return res.status(500).json({ error: 'Storage not available: ' + storageError() });
     }
 
     const { bugId } = req.params;

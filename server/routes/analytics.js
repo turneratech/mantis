@@ -14,15 +14,17 @@ const fs = require('fs');
 const storage = require('../storage');
 const { query, queryOne } = require('../storage/mysql/db');
 const { authMiddleware } = require('../middleware/auth');
+const { requireFeature } = require('../middleware/licenseValidator');
+const { FEATURES } = require('../config/features');
 
 // Logo path configuration - adjust based on your project structure
 const getLogoPath = () => {
   const possiblePaths = [
-    path.join(__dirname, '../public/bugtracker/imgs/logo_small.png'),
+    path.join(__dirname, '../public/mantis/imgs/logo_small.png'),
     path.join(__dirname, '../public/imgs/logo_small.png'),
-    path.join(__dirname, '../../public/bugtracker/imgs/logo_small.png'),
-    path.join(__dirname, '../../client/public/bugtracker/imgs/logo_small.png'),
-    path.join(__dirname, '../static/bugtracker/imgs/logo_small.png'),
+    path.join(__dirname, '../../public/mantis/imgs/logo_small.png'),
+    path.join(__dirname, '../../client/public/mantis/imgs/logo_small.png'),
+    path.join(__dirname, '../static/mantis/imgs/logo_small.png'),
     path.join(__dirname, '../assets/logo_small.png'),
     path.join(__dirname, '../imgs/logo_small.png')
   ];
@@ -104,7 +106,7 @@ router.post('/report-data', authMiddleware, async (req, res) => {
 });
 
 // Generate PDF report
-router.post('/generate-report', authMiddleware, async (req, res) => {
+router.post('/generate-report', authMiddleware, requireFeature(FEATURES.ADVANCED_REPORTING), async (req, res) => {
   try {
     if (!hasElevatedPrivileges(req.user)) {
       return res.status(403).json({ error: 'God mode access required for report generation' });
@@ -120,7 +122,7 @@ router.post('/generate-report', authMiddleware, async (req, res) => {
     const pdfBuffer = await generatePDFReport(data, reportType, startDate, endDate, req.user.username);
     
     res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=BugTracker_${reportType}_Report_${startDate}_to_${endDate}.pdf`);
+    res.setHeader('Content-Disposition', `attachment; filename=Mantis_${reportType}_Report_${startDate}_to_${endDate}.pdf`);
     res.send(pdfBuffer);
   } catch (error) {
     console.error('Error generating PDF report:', error);
@@ -170,7 +172,7 @@ setInterval(() => {
 }, 60 * 60 * 1000); // Clean every hour
 
 // ==================== AI COMMENTARY ENDPOINT ====================
-router.post('/ai-commentary', authMiddleware, async (req, res) => {
+router.post('/ai-commentary', authMiddleware, requireFeature(FEATURES.AI_INSIGHTS), async (req, res) => {
   try {
     if (!hasElevatedPrivileges(req.user)) {
       return res.status(403).json({ error: 'Admin access required' });
@@ -988,10 +990,10 @@ async function generatePDFReport(data, reportType, startDate, endDate, generated
         size: 'A4', 
         margins: { top: 50, bottom: 70, left: 50, right: 50 },
         info: {
-          Title: `BugTracker ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`,
-          Author: 'BugTracker System',
-          Subject: `Bug Tracking Report from ${startDate} to ${endDate}`,
-          Creator: 'BugTracker Report Generator'
+          Title: `Mantis ${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`,
+          Author: 'Mantis System',
+          Subject: `Mantis Report from ${startDate} to ${endDate}`,
+          Creator: 'Mantis Report Generator'
         }
       });
 
@@ -1025,7 +1027,7 @@ async function generatePDFReport(data, reportType, startDate, endDate, generated
         const savedY = doc.y;
         doc.fontSize(8)
            .fillColor(colors.gray)
-           .text('CONFIDENTIAL - BugTracker Internal Report - Do Not Distribute', 50, doc.page.height - 50, { align: 'center', width: pageWidth })
+           .text('CONFIDENTIAL - Mantis Internal Report - Do Not Distribute', 50, doc.page.height - 50, { align: 'center', width: pageWidth })
            .text(`Generated on ${new Date().toLocaleDateString()} by ${generatedBy} | Page ${pageNumber}`, 50, doc.page.height - 38, { align: 'center', width: pageWidth });
         doc.y = savedY;
       };
@@ -1037,7 +1039,7 @@ async function generatePDFReport(data, reportType, startDate, endDate, generated
             doc.image(logoPath, doc.page.width - 80, 15, { width: 24, height: 24 });
             doc.fontSize(8)
                .fillColor(colors.gray)
-               .text('BugTracker', doc.page.width - 80, 42, { width: 50, align: 'left' });
+               .text('Mantis', doc.page.width - 80, 42, { width: 50, align: 'left' });
           } catch (e) {
             // Logo not available, skip
           }
@@ -1062,7 +1064,7 @@ async function generatePDFReport(data, reportType, startDate, endDate, generated
       
       doc.fontSize(32)
          .fillColor('white')
-         .text('BugTracker', titleStartX, 55)
+         .text('Mantis', titleStartX, 55)
          .fontSize(24)
          .text(`${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`, titleStartX, 95);
 
@@ -1377,7 +1379,7 @@ async function generatePDFReport(data, reportType, startDate, endDate, generated
       doc.y += 30;
       doc.fontSize(10)
          .fillColor(colors.gray)
-         .text('This report was automatically generated by the BugTracker system.', 50, doc.y)
+         .text('This report was automatically generated by the Mantis system.', 50, doc.y)
          .text('For questions or concerns, please contact your project administrator.', 50, doc.y + 15);
 
       // Final footer with logo

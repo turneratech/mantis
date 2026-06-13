@@ -1,6 +1,6 @@
-# Contributing to BugTracker
+# Contributing to Mantis
 
-First off, thank you for considering contributing to BugTracker! It's people like you that make BugTracker such a great tool.
+First off, thank you for considering contributing to Mantis! It's people like you that make Mantis such a great tool.
 
 ## Code of Conduct
 
@@ -27,7 +27,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 * **Provide a step-by-step description of the suggested enhancement** in as many details as possible.
 * **Provide specific examples to demonstrate the steps.**
 * **Describe the current behavior** and **explain which behavior you expected to see instead** and why.
-* **Explain why this enhancement would be useful** to most BugTracker users.
+* **Explain why this enhancement would be useful** to most Mantis users.
 
 ### Pull Requests
 
@@ -75,7 +75,7 @@ Enhancement suggestions are tracked as GitHub issues. When creating an enhanceme
 ## Project Structure
 
 ```
-bugtracker/
+mantis/
 ├── client/           # React frontend
 │   ├── src/
 │   │   ├── components/   # React components

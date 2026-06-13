@@ -5,23 +5,40 @@
  * ROLES:
  * - godmode: Full access to all bugs, can delete bugs
  * - admin: Full access to all bugs, can delete bugs
- * - user: Can only see/edit bugs where they are assignee, reporter, QA owner, or in ARB
+ * - user: Can see/edit bugs in projects they are assigned to, or where they
+ *   are assignee, reporter, QA owner, or in ARB
  * 
  * Visibility Rules:
  * - Godmode/Admin: Can see all bugs
- * - Regular User: Can see bugs where they are assignee, reporter, QA owner, or in ARB
+ * - Regular User: Can see bugs in assigned projects, or where they are assignee,
+ *   reporter, QA owner, or in ARB
  */
 
 const express = require('express');
 const storage = require('../storage');
-const { query } = require('../storage/mysql/db');
+const { query } = require('../storage/sqlDb')();
 const { authMiddleware } = require('../middleware/auth');
+const webhookService = require('../services/webhookService');
 
 const router = express.Router();
 
 // Helper function to check if user has elevated privileges
 const hasElevatedPrivileges = (user) => {
   return user && (user.role === 'godmode' || user.role === 'admin');
+};
+
+const normalizeProjectKey = (projectKey) => (projectKey || '').toUpperCase();
+
+const getAccessibleProjectKeys = async (user, isPrivileged) => {
+  if (isPrivileged) return null;
+
+  const projects = await storage.getAllProjects(user.username, false);
+  return new Set(projects.map(project => normalizeProjectKey(project.key)));
+};
+
+const canUserAccessProject = (projectKey, isPrivileged, accessibleProjectKeys) => {
+  if (isPrivileged) return true;
+  return accessibleProjectKeys?.has(normalizeProjectKey(projectKey));
 };
 
 // Helper function to get activity log with IDs (for deletion support)
@@ -38,8 +55,11 @@ const getActivityLogWithIds = async (bugId) => {
 /**
  * Check if user can view a bug
  */
-const canUserViewBug = (bug, username, isPrivileged) => {
+const canUserViewBug = (bug, username, isPrivileged, accessibleProjectKeys) => {
   if (isPrivileged) return true;
+
+  const projectKey = bug.projectKey || bug.project_key;
+  if (canUserAccessProject(projectKey, isPrivileged, accessibleProjectKeys)) return true;
   
   // User is assignee
   if (bug.assignee === username) return true;
@@ -61,9 +81,9 @@ const canUserViewBug = (bug, username, isPrivileged) => {
 /**
  * Filter bugs based on user visibility
  */
-const filterBugsForUser = (bugs, username, isPrivileged) => {
+const filterBugsForUser = (bugs, username, isPrivileged, accessibleProjectKeys) => {
   if (isPrivileged) return bugs;
-  return bugs.filter(bug => canUserViewBug(bug, username, isPrivileged));
+  return bugs.filter(bug => canUserViewBug(bug, username, isPrivileged, accessibleProjectKeys));
 };
 
 // Get all bugs across all projects (for admin dashboard)
@@ -81,7 +101,8 @@ router.get('/all', authMiddleware, async (req, res) => {
     }
     
     // Filter for non-privileged users
-    bugs = filterBugsForUser(bugs, req.user.username, isPrivileged);
+    const accessibleProjectKeys = await getAccessibleProjectKeys(req.user, isPrivileged);
+    bugs = filterBugsForUser(bugs, req.user.username, isPrivileged, accessibleProjectKeys);
     
     res.json(bugs);
   } catch (error) {
@@ -97,7 +118,8 @@ router.get('/project/:projectKey', authMiddleware, async (req, res) => {
     let bugs = await storage.getBugsByProject(req.params.projectKey);
     
     // Filter for non-privileged users
-    bugs = filterBugsForUser(bugs, req.user.username, isPrivileged);
+    const accessibleProjectKeys = await getAccessibleProjectKeys(req.user, isPrivileged);
+    bugs = filterBugsForUser(bugs, req.user.username, isPrivileged, accessibleProjectKeys);
     
     res.json(bugs);
   } catch (error) {
@@ -139,6 +161,21 @@ router.get('/my-bugs', authMiddleware, async (req, res) => {
 });
 
 
+// Get stats for a project
+router.get('/stats/:projectKey', authMiddleware, async (req, res) => {
+  try {
+    const isPrivileged = hasElevatedPrivileges(req.user);
+    const accessibleProjectKeys = await getAccessibleProjectKeys(req.user, isPrivileged);
+    if (!canUserAccessProject(req.params.projectKey, isPrivileged, accessibleProjectKeys)) {
+      return res.status(403).json({ error: 'You do not have permission to view stats for this project' });
+    }
+
+    const stats = await storage.getBugStats(req.params.projectKey);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // Get single bug
 router.get('/:projectKey/:bugId', authMiddleware, async (req, res) => {
@@ -150,7 +187,8 @@ router.get('/:projectKey/:bugId', authMiddleware, async (req, res) => {
     
     // Check visibility
     const isPrivileged = hasElevatedPrivileges(req.user);
-    if (!canUserViewBug(bug, req.user.username, isPrivileged)) {
+    const accessibleProjectKeys = await getAccessibleProjectKeys(req.user, isPrivileged);
+    if (!canUserViewBug(bug, req.user.username, isPrivileged, accessibleProjectKeys)) {
       return res.status(403).json({ error: 'You do not have permission to view this bug' });
     }
     
@@ -178,6 +216,12 @@ router.post('/:projectKey', authMiddleware, async (req, res) => {
     const project = await storage.getProjectByKey(projectKey);
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const isPrivileged = hasElevatedPrivileges(req.user);
+    const accessibleProjectKeys = await getAccessibleProjectKeys(req.user, isPrivileged);
+    if (!canUserAccessProject(projectKey, isPrivileged, accessibleProjectKeys)) {
+      return res.status(403).json({ error: 'You do not have permission to create bugs in this project' });
     }
 
     // Generate bug ID
@@ -209,6 +253,8 @@ router.post('/:projectKey', authMiddleware, async (req, res) => {
       bugType: bugType || 'Bug'
     }, req.user.username);
 
+    webhookService.dispatch('bug.created', { bug, projectKey, user: req.user.username }).catch(() => {});
+
     res.status(201).json(bug);
   } catch (error) {
     console.error('Error creating bug:', error);
@@ -224,9 +270,10 @@ router.put('/:projectKey/:bugId', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Bug not found' });
     }
     
-    // Check if user can edit (privileged users, assignee, reporter, or in ARB)
+    // Check if user can edit (project members, privileged users, assignee, reporter, or in ARB)
     const isPrivileged = hasElevatedPrivileges(req.user);
-    if (!canUserViewBug(bug, req.user.username, isPrivileged)) {
+    const accessibleProjectKeys = await getAccessibleProjectKeys(req.user, isPrivileged);
+    if (!canUserViewBug(bug, req.user.username, isPrivileged, accessibleProjectKeys)) {
       return res.status(403).json({ error: 'You do not have permission to edit this bug' });
     }
 
@@ -263,6 +310,8 @@ router.put('/:projectKey/:bugId', authMiddleware, async (req, res) => {
       bugType: canEditType ? nullIfUndefined(bugType) : null
     }, req.user.username);
 
+    webhookService.dispatch('bug.updated', { bug: updated, bugId: req.params.bugId, user: req.user.username }).catch(() => {});
+
     res.json(updated);
   } catch (error) {
     console.error('Error updating bug:', error);
@@ -280,7 +329,8 @@ router.post('/:projectKey/:bugId/comment', authMiddleware, async (req, res) => {
     
     // Check visibility before allowing comment
     const isPrivileged = hasElevatedPrivileges(req.user);
-    if (!canUserViewBug(bug, req.user.username, isPrivileged)) {
+    const accessibleProjectKeys = await getAccessibleProjectKeys(req.user, isPrivileged);
+    if (!canUserViewBug(bug, req.user.username, isPrivileged, accessibleProjectKeys)) {
       return res.status(403).json({ error: 'You do not have permission to comment on this bug' });
     }
 
@@ -289,6 +339,12 @@ router.post('/:projectKey/:bugId/comment', authMiddleware, async (req, res) => {
       req.user.username,
       req.body.comment
     );
+
+    webhookService.dispatch('bug.commented', {
+      bugId: req.params.bugId,
+      comment: req.body.comment,
+      user: req.user.username
+    }).catch(() => {});
 
     res.json(updated);
   } catch (error) {
@@ -309,6 +365,12 @@ router.delete('/:projectKey/:bugId', authMiddleware, async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ error: 'Bug not found' });
     }
+
+    webhookService.dispatch('bug.deleted', {
+      bugId: req.params.bugId,
+      user: req.user.username
+    }).catch(() => {});
+
     res.json({ message: 'Bug deleted' });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
@@ -338,16 +400,6 @@ router.delete('/:projectKey/:bugId/comment/:commentId', authMiddleware, async (r
     res.json(updatedBug);
   } catch (error) {
     console.error('Error deleting comment:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// Get stats for a project
-router.get('/stats/:projectKey', authMiddleware, async (req, res) => {
-  try {
-    const stats = await storage.getBugStats(req.params.projectKey);
-    res.json(stats);
-  } catch (error) {
     res.status(500).json({ error: 'Server error' });
   }
 });

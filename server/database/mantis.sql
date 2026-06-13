@@ -1,6 +1,6 @@
 -- MySQL dump 10.13  Distrib 8.0.42, for Linux (x86_64)
 --
--- Host: localhost    Database: bugtracker
+-- Host: localhost    Database: mantis
 -- ------------------------------------------------------
 -- Server version	8.0.42-0ubuntu0.20.04.1
 
@@ -18,7 +18,7 @@
 --
 -- Table structure for table `bug_activity`
 --
-
+USE mantis;
 DROP TABLE IF EXISTS `bug_activity`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
@@ -132,9 +132,9 @@ CREATE TABLE `email_config` (
   `smtp_user` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `smtp_password` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `from_email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `from_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'BugTracker Reports',
+  `from_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'Mantis Reports',
   `logo_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `company_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'BugTracker',
+  `company_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT 'Mantis',
   `is_active` tinyint(1) DEFAULT '1',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

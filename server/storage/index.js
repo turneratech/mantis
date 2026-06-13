@@ -1,124 +1,129 @@
 /**
- * Storage Factory
- * 
- * Automatically detects and initializes the appropriate storage backend.
- * Tries MySQL first, falls back to CSV if MySQL is not available.
+ * Storage Factory — MySQL, PostgreSQL/Supabase, or CSV
  */
+
+const deploymentConfig = require('../config/deployment.config');
 
 let storage = null;
 let storageType = null;
 let initialized = false;
 
-/**
- * Detect and initialize storage backend
- * @returns {Promise<Object>} Storage implementation
- */
+const tryMySQL = async () => {
+  const mysqlStorage = require('./mysql');
+  const { testConnection, checkDatabase } = require('./mysql/db');
+  if (!(await testConnection())) return null;
+  if (!(await checkDatabase())) {
+    console.log('⚠ MySQL connected but tables not found — run server/database/mantis.sql');
+    return null;
+  }
+  return mysqlStorage;
+};
+
+const tryPostgres = async () => {
+  const postgresStorage = require('./postgres');
+  const { testConnection, checkDatabase } = require('./postgres/db');
+  if (!(await testConnection())) return null;
+  if (!(await checkDatabase())) {
+    console.log('⚠ PostgreSQL connected but schema not found — run server/database/mantis.postgres.sql');
+    return null;
+  }
+  return postgresStorage;
+};
+
 const initializeStorage = async () => {
-  if (initialized && storage) {
+  if (initialized && storage) return storage;
+
+  const provider = deploymentConfig.getDatabaseProvider();
+  console.log(`🔍 Detecting storage backend (provider: ${provider})...`);
+
+  if (provider === 'csv') {
+    const csvStorage = require('./csv');
+    await csvStorage.initialize();
+    storage = csvStorage;
+    storageType = 'csv';
+    initialized = true;
+    console.log('✓ Using CSV storage backend');
     return storage;
   }
 
-  console.log('🔍 Detecting storage backend...');
+  if (provider === 'postgres' || provider === 'supabase') {
+    try {
+      const pg = await tryPostgres();
+      if (pg) {
+        storage = pg;
+        storageType = 'postgres';
+        initialized = true;
+        console.log('✓ Using PostgreSQL storage backend');
+        return storage;
+      }
+      if (provider === 'postgres' || provider === 'supabase') {
+        throw new Error('PostgreSQL/Supabase required but connection or schema check failed.');
+      }
+    } catch (err) {
+      if (provider === 'postgres' || provider === 'supabase') throw err;
+      console.log('⚠ PostgreSQL not available:', err.message);
+    }
+  }
 
-  // Try MySQL first
-  try {
-    const mysqlStorage = require('./mysql');
-    const { testConnection, checkDatabase } = require('./mysql/db');
-    
-    // Test MySQL connection
-    const connected = await testConnection();
-    
-    if (connected) {
-      // Check if tables exist
-      const tablesExist = await checkDatabase();
-      
-      if (tablesExist) {
+  if (['mysql', 'auto', 'postgres', 'supabase'].includes(provider)) {
+    try {
+      const mysqlStorage = await tryMySQL();
+      if (mysqlStorage) {
         storage = mysqlStorage;
         storageType = 'mysql';
         initialized = true;
         console.log('✓ Using MySQL storage backend');
         return storage;
-      } else {
-        console.log('⚠ MySQL connected but tables not found');
-        console.log('  Run: mysql -u root -p bugtracker < server/database/schema.sql');
       }
-    } else {
-      console.log('⚠ MySQL connection failed');
+      if (provider === 'mysql') {
+        throw new Error('MySQL required but connection or schema check failed.');
+      }
+    } catch (err) {
+      if (provider === 'mysql') throw err;
+      console.log('⚠ MySQL not available:', err.message);
     }
-  } catch (error) {
-    console.log('⚠ MySQL not available:', error.message);
   }
 
-  // Fall back to CSV
   console.log('↪ Falling back to CSV storage backend');
-  
   const csvStorage = require('./csv');
   await csvStorage.initialize();
-  
   storage = csvStorage;
   storageType = 'csv';
   initialized = true;
   console.log('✓ Using CSV storage backend');
-  
   return storage;
 };
 
-/**
- * Get current storage instance
- * @returns {Object} Storage implementation
- */
 const getStorage = () => {
-  if (!storage) {
-    throw new Error('Storage not initialized. Call initializeStorage() first.');
-  }
+  if (!storage) throw new Error('Storage not initialized. Call initializeStorage() first.');
   return storage;
 };
 
-/**
- * Get current storage type
- * @returns {string} 'mysql' or 'csv'
- */
-const getStorageType = () => {
-  return storageType;
-};
+const getStorageType = () => storageType;
+const isSqlStorage = () => storageType === 'mysql' || storageType === 'postgres';
+const isInitialized = () => initialized;
 
-/**
- * Check if storage is initialized
- * @returns {boolean}
- */
-const isInitialized = () => {
-  return initialized;
-};
-
-/**
- * Reset storage (for testing purposes)
- */
 const resetStorage = () => {
   storage = null;
   storageType = null;
   initialized = false;
 };
 
-// Export both factory functions and proxy to storage methods
 module.exports = {
   initializeStorage,
   getStorage,
   getStorageType,
+  isSqlStorage,
   isInitialized,
   resetStorage,
-  
-  // Proxy all storage methods for convenience
-  // These will throw if storage is not initialized
-  
-  // Users
+
   getUserById: (...args) => getStorage().getUserById(...args),
   getUserByUsername: (...args) => getStorage().getUserByUsername(...args),
   getAllUsers: (...args) => getStorage().getAllUsers(...args),
   createUser: (...args) => getStorage().createUser(...args),
   deleteUser: (...args) => getStorage().deleteUser(...args),
   updateUserPassword: (...args) => getStorage().updateUserPassword(...args),
-  
-  // Projects
+
   getAllProjects: (...args) => getStorage().getAllProjects(...args),
   getProjectById: (...args) => getStorage().getProjectById(...args),
   getProjectByKey: (...args) => getStorage().getProjectByKey(...args),
@@ -127,8 +132,7 @@ module.exports = {
   deleteProject: (...args) => getStorage().deleteProject(...args),
   addProjectMember: (...args) => getStorage().addProjectMember(...args),
   removeProjectMember: (...args) => getStorage().removeProjectMember(...args),
-  
-  // Bugs
+
   getAllBugs: (...args) => getStorage().getAllBugs(...args),
   getBugsByProject: (...args) => getStorage().getBugsByProject(...args),
   getBugsByUser: (...args) => getStorage().getBugsByUser(...args),
@@ -139,11 +143,8 @@ module.exports = {
   deleteBug: (...args) => getStorage().deleteBug(...args),
   addBugComment: (...args) => getStorage().addBugComment(...args),
   getBugStats: (...args) => getStorage().getBugStats(...args),
-  
-  // NEW proxy for GitHub webhook
   addBugActivity: (...args) => getStorage().addBugActivity(...args),
-  
-  // Analytics
+
   getAdminAnalytics: (...args) => getStorage().getAdminAnalytics(...args),
   getUserDashboard: (...args) => getStorage().getUserDashboard(...args)
 };

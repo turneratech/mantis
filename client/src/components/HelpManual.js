@@ -28,7 +28,7 @@ function HelpManual() {
         <div className="help-header-content">
           <h1>
             <span className="help-logo">ðŸ“–</span>
-            BugTracker User Manual
+            Mantis User Manual
           </h1>
           <p>Everything you need to know to track and manage bugs effectively</p>
           
@@ -74,12 +74,12 @@ function HelpManual() {
           <section id="getting-started" className="help-section">
             <div className="section-header gradient-blue">
               <h2>ðŸš€ Getting Started</h2>
-              <p>Welcome to BugTracker! Let's get you up and running.</p>
+              <p>Welcome to Mantis! Let's get you up and running.</p>
             </div>
             
             <div className="help-card">
-              <h3>What is BugTracker?</h3>
-              <p>BugTracker is a powerful yet simple bug tracking system designed to help teams efficiently track, manage, and resolve software issues. It supports multiple projects, customizable workflows, and team collaboration.</p>
+              <h3>What is Mantis?</h3>
+              <p>Mantis is a powerful yet simple bug tracking system designed to help teams efficiently track, manage, and resolve software issues. It supports multiple projects, customizable workflows, and team collaboration.</p>
             </div>
 
             <div className="help-grid">
@@ -580,7 +580,7 @@ function HelpManual() {
           <section id="tips" className="help-section">
             <div className="section-header gradient-pink">
               <h2>ðŸ’¡ Tips & Best Practices</h2>
-              <p>Get the most out of BugTracker.</p>
+              <p>Get the most out of Mantis.</p>
             </div>
 
             <div className="tips-grid">
@@ -746,7 +746,7 @@ function HelpManual() {
           {/* Footer */}
           <div className="help-footer">
             <p>ðŸ“§ Need more help? Contact your system administrator.</p>
-            <p className="version-info">BugTracker v2.0 â€¢ Manual v1.0</p>
+            <p className="version-info">Mantis v2.0 â€¢ Manual v1.0</p>
           </div>
 
         </main>

@@ -153,7 +153,7 @@ function ProjectForm() {
                 className="form-control"
                 value={formData.name}
                 onChange={handleChange}
-                placeholder="e.g., Bug Tracker System"
+                placeholder="e.g., Mantis Mobile App"
                 required
               />
             </div>

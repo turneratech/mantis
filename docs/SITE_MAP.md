@@ -1,6 +1,7 @@
 # Mantis Site Map
 
-Last scanned: 2026-06-12.
+**Last updated:** 2026-06-13  
+**Companion:** `docs/PROJECT_CACHE.md` (architecture + TurnerTech production state)
 
 Use this file as a compact map of client pages and server APIs. The app is mounted under `/mantis` in the browser, while APIs are called under `/api/*` through the configured base/proxy path.
 
@@ -12,7 +13,11 @@ Base path:
 
 - `/mantis`
 
-Public route:
+**First-run setup** (when `needsSetup` — replaces all routes):
+
+- `/*` → `SetupWizard` (unauthenticated): admin bootstrap, DB, storage, license, complete
+
+Public route (after setup):
 
 - `/login` - login page, renders `Login`; redirects authenticated users to `/`
 
@@ -32,6 +37,7 @@ Protected routes:
 - `/change-password` - change current user's password, renders `ChangePassword`
 - `/reports` - report generator, admin/godmode only, renders `ReportGenerator`
 - `/email-config` - email configuration, admin/godmode only, renders `EmailConfig`
+- `/deployment` - deployment/storage config, admin/godmode only, renders `DeploymentConfig`
 
 Persistent layout:
 
@@ -170,6 +176,17 @@ Admin/godmode only:
 - `DELETE /api/email/schedules/:id`
 - `POST /api/email/schedules/:id/send-now`
 
+`SetupWizard.js` (first-run):
+
+- `GET /api/setup/status`
+- `GET /api/setup/providers`
+- `POST /api/setup/bootstrap-admin`
+- `POST /api/setup/settings`
+- `POST /api/setup/test/database`
+- `POST /api/setup/test/storage`
+- `POST /api/setup/complete`
+- `POST {PORTAL_URL}/api/licenses/fetch` (external portal)
+
 `LicenseContext.js`:
 
 - `GET /api/license/status`
@@ -178,6 +195,18 @@ Admin/godmode only:
 ## Backend API Map
 
 All route modules are mounted in `server/index.js`.
+
+### Setup (public until complete)
+
+Mounted from `server/routes/setup.js` at `/api/setup`.
+
+- `GET /api/setup/status` - needsSetup, instance id, providers
+- `GET /api/setup/providers` - DB/storage options
+- `POST /api/setup/bootstrap-admin` - create first admin (no login required)
+- `POST /api/setup/settings` - save deployment settings
+- `POST /api/setup/test/database` - test DB connection
+- `POST /api/setup/test/storage` - test file storage
+- `POST /api/setup/complete` - mark setup done
 
 ### Health
 
@@ -288,11 +317,27 @@ Mounted from `server/routes/github-webhook.js` at `/api/webhooks`.
 - `GET /api/webhooks/github/test/:projectKey` - test webhook/project mapping
 - `GET /api/webhooks/github/health` - webhook health
 
+## Portal API (separate app — `portal/server.js`, not main server)
+
+Base URL prod: `https://license.turneratech.com` | dev: `http://localhost:4000`
+
+- `GET /api/config` - public config for WordPress page
+- `GET /api/public-key` - ES256 public key for license validation
+- `POST /api/register` - create portal account (WordPress form)
+- `POST /api/login` - portal login
+- `GET /api/me` - current portal user (Bearer)
+- `GET /api/licenses/mine` - user's licenses (Bearer)
+- `POST /api/licenses/issue` - issue Community license (Bearer)
+- `POST /api/licenses/fetch` - fetch license by email+password (setup wizard)
+- `POST /api/licenses/validate` - validate JWT license key
+
 ## Access Map
 
 Public:
 
 - Browser `/login`
+- **Entire app → SetupWizard** when `needsSetup`
+- `GET /api/setup/status` and other `/api/setup/*` until complete
 - `POST /api/auth/login`
 - `GET /api/license/status`
 - `POST /api/webhooks/github`
@@ -341,3 +386,6 @@ License-gated backend behaviors:
 - Help modal/manual: `client/src/components/HelpModal.js`, `client/src/components/HelpManual.js`
 - License provider: `client/src/contexts/LicenseContext.js`
 - License guards/status: `client/src/components/common/FeatureGuard.js`, `LicenseStatus.js`, `UpgradePrompt.js`
+- Setup wizard: `client/src/components/SetupWizard.js`
+- Deployment admin: `client/src/components/DeploymentConfig.js` (if present)
+- Portal config (client): `client/src/config/portal.js`

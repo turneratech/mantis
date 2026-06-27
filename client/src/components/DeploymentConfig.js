@@ -360,7 +360,7 @@ function DeploymentConfig() {
               rows={4}
               value={licenseKey}
               onChange={e => setLicenseKey(e.target.value)}
-              placeholder="Paste JWT license key from turneratech.com"
+              placeholder="Paste JWT license key from TurnerTech portal"
             />
           </label>
           <div className="deployment-actions" style={{ marginTop: '1rem', paddingTop: 0, borderTop: 'none' }}>

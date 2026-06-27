@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../App';
+import { useLicense } from '../hooks/useLicense';
 
 function UserManagement() {
   const { user: currentUser } = useAuth();
+  const { getLimitInfo, isAtLimit, promptUpgrade } = useLicense();
+  const userLimit = getLimitInfo('users');
+  const atUserLimit = isAtLimit('users');
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -233,11 +237,32 @@ function UserManagement() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">User Management ({users.length})</h1>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <div>
+          <h1 className="page-title">User Management ({users.length})</h1>
+          {userLimit.max !== null && (
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: atUserLimit ? '#e67e22' : '#666' }}>
+              {userLimit.current ?? users.length}/{userLimit.max} users on Community plan
+            </p>
+          )}
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => (atUserLimit ? promptUpgrade('priority_support') : setShowModal(true))}
+          disabled={atUserLimit}
+          title={atUserLimit ? 'User limit reached — upgrade for unlimited users' : undefined}
+        >
           + Add User
         </button>
       </div>
+
+      {atUserLimit && (
+        <div className="error-message" style={{ marginBottom: '1rem' }}>
+          User limit reached. Upgrade to Professional for unlimited users.{' '}
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => promptUpgrade('priority_support')}>
+            View plans
+          </button>
+        </div>
+      )}
 
       <div className="card">
         <table className="user-table">

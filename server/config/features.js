@@ -88,24 +88,28 @@ const TIER_LIMITS = {
   [TIERS.COMMUNITY]: {
     maxUsers: 5,
     maxProjects: 3,
+    maxBugs: 250,
     maxAttachmentSizeMB: 5,
     aiRequestsPerMonth: 0
   },
   [TIERS.PROFESSIONAL]: {
     maxUsers: null,
     maxProjects: null,
+    maxBugs: null,
     maxAttachmentSizeMB: null,
     aiRequestsPerMonth: 1000
   },
   [TIERS.ENTERPRISE]: {
     maxUsers: null,
     maxProjects: null,
+    maxBugs: null,
     maxAttachmentSizeMB: null,
     aiRequestsPerMonth: 5000
   },
   [TIERS.CLOUD]: {
     maxUsers: null,
     maxProjects: null,
+    maxBugs: null,
     maxAttachmentSizeMB: null,
     aiRequestsPerMonth: 1000
   }

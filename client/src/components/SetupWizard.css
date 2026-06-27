@@ -1,9 +1,61 @@
 .setup-wizard {
-  min-height: calc(100vh - 120px);
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem;
+}
+
+.setup-brand {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.setup-logo {
+  height: 72px;
+}
+
+.setup-instance-id {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: -0.5rem 0 1rem;
+}
+
+.setup-instance-id code {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.setup-optional {
+  font-weight: normal;
+  color: #64748b;
+}
+
+.setup-license-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.setup-tab {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #475569;
+  background: #0f172a;
+  color: #94a3b8;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.setup-tab.active {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  border-color: transparent;
+  color: #fff;
+}
+
+.setup-step a {
+  color: #a5b4fc;
 }
 
 .setup-wizard-card {

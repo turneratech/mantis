@@ -124,7 +124,20 @@ Settings are saved to `server/data/deployment.local.json` (gitignored). Env vars
 | Enterprise | Unlimited | Unlimited | SSO, audit logs, webhooks, white-label |
 | Cloud | Per-user | Unlimited | Managed hosting by TurnerTech |
 
-Activate keys at **Admin → License** or set via API `POST /api/license/activate`.
+Activate keys at **Admin → License**, via the [TurnerTech portal](http://localhost:4000) (local dev), or `POST /api/license/activate`.
+
+## First-Run Setup (Self-Hosted)
+
+On a fresh install (production), open **`/mantis/setup`** — no login required:
+
+1. **Create administrator** — local account on your server (not turneratech.com)
+2. **Database** — MySQL, PostgreSQL, Supabase, or CSV (eval)
+3. **Storage** — local, S3, or Azure
+4. **License** — paste key from turneratech.com or skip for Community Edition
+
+The instance ID shown in the wizard is for support requests.
+
+Development mode (`NODE_ENV=development` or `MANTIS_DEV_DEFAULTS=true`) still seeds `admin` / `admin123` for local testing.
 
 ## Production Checklist
 

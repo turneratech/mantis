@@ -1,11 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import { useLicense } from '../hooks/useLicense';
 
 /**
  * Simple FileUpload Component - Bugzilla style
  * Just a button that opens file picker
  */
 function FileUpload({ bugId, onUploadComplete, disabled = false }) {
+  const { license } = useLicense();
+  const maxMB = license.limits?.maxAttachmentSizeMB;
+  const maxBytes = maxMB != null ? maxMB * 1024 * 1024 : 25 * 1024 * 1024;
+  const maxLabel = maxMB != null ? `${maxMB}MB` : '25MB';
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [provider, setProvider] = useState('local');
@@ -56,8 +61,8 @@ function FileUpload({ bugId, onUploadComplete, disabled = false }) {
 
     for (const file of files) {
       // Validate size
-      if (file.size > 25 * 1024 * 1024) {
-        setError(`${file.name} exceeds 25MB limit`);
+      if (file.size > maxBytes) {
+        setError(`${file.name} exceeds ${maxLabel} limit`);
         continue;
       }
 

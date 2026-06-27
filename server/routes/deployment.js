@@ -13,6 +13,7 @@ const webhookService = require('../services/webhookService');
 
 const isPrivileged = (user) => user && (user.role === 'godmode' || user.role === 'admin');
 const isGodmode = (user) => user && user.role === 'godmode';
+const setupService = require('../services/setupService');
 
 router.get('/setup-status', authMiddleware, async (req, res) => {
   if (!isPrivileged(req.user)) {
@@ -20,33 +21,8 @@ router.get('/setup-status', authMiddleware, async (req, res) => {
   }
 
   try {
-    const storage = require('../storage');
-    const local = deploymentConfig.reloadLocalConfig();
-    const licenseService = require('../services/licenseService');
-    const license = await licenseService.getLicenseStatus();
-    const dbType = storage.getStorageType();
-    const dbConnected = dbType !== 'csv' && await storage.getStorage().isConnected().catch(() => false);
-
-    const setupComplete = local.setupComplete === true;
-    const databaseOk = dbConnected && dbType !== 'csv';
-    const licenseOk = license.tier !== 'community' || license.licensee || local.licenseSkipped === true;
-
-    // Existing MySQL/Postgres installs skip the wizard unless explicitly incomplete
-    const needsSetup = !setupComplete && dbType === 'csv';
-    res.json({
-      needsSetup,
-      setupComplete,
-      steps: {
-        database: { complete: databaseOk, provider: dbType, connected: dbConnected },
-        storage: { complete: true, default: deploymentConfig.getFileStorageConfig().default },
-        license: {
-          complete: licenseOk,
-          tier: license.tier,
-          skipped: local.licenseSkipped === true
-        }
-      },
-      isFirstRun: dbType === 'csv' && !setupComplete
-    });
+    const status = await setupService.getSetupStatus();
+    res.json(status);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -57,16 +33,16 @@ router.post('/setup/complete', authMiddleware, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const partial = {
-    setupComplete: true,
-    setupCompletedAt: new Date().toISOString(),
-    setupCompletedBy: req.user.username
-  };
-
-  if (req.body.licenseSkipped) partial.licenseSkipped = true;
-
-  deploymentConfig.saveLocalConfig(partial);
-  res.json({ message: 'Setup marked complete', setupComplete: true });
+  try {
+    const result = await setupService.completeSetup({
+      licenseSkipped: !!req.body.licenseSkipped,
+      licenseKey: req.body.licenseKey,
+      completedBy: req.user.username
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
 });
 
 router.get('/providers', authMiddleware, (req, res) => {

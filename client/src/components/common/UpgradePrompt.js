@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLicense } from '../../hooks/useLicense';
+import { portalRegisterUrl } from '../../config/portal';
 
 const FEATURE_TIER = {
   ai_insights: 'Professional',
@@ -57,7 +58,7 @@ const FEATURE_LABEL = {
 
 const TIER_PRICE = {
   Professional: '$49–99/mo',
-  Enterprise: '$199–299/mo',
+  Enterprise: 'Custom annual',
   Cloud: '$15–25/user/mo'
 };
 
@@ -104,9 +105,11 @@ export function UpgradePrompt() {
           </div>
 
           <p style={s.contactLine}>
-            Contact{' '}
-            <a href="mailto:sales@turneratech.com" style={s.link}>sales@turneratech.com</a>{' '}
-            to upgrade your license.
+            <a href={portalRegisterUrl()} target="_blank" rel="noopener noreferrer" style={s.link}>
+              Get a license at the portal
+            </a>
+            {' · '}
+            <a href="mailto:sales@turneratech.com" style={s.link}>sales@turneratech.com</a>
           </p>
         </div>
 

@@ -42,6 +42,34 @@ const isDatabaseMode = () => {
   }
 };
 
+const buildStatusFromPayload = (payload) => {
+  const tier = payload.tier || TIERS.COMMUNITY;
+  const baseLimits = TIER_LIMITS[tier] || TIER_LIMITS[TIERS.COMMUNITY];
+  const expiresAt = payload.exp ? new Date(payload.exp * 1000) : null;
+
+  return {
+    tier,
+    originalTier: tier,
+    status: payload.trial ? 'trial' : 'active',
+    valid: true,
+    isGracePeriod: false,
+    isTrial: !!payload.trial,
+    features: TIER_FEATURES[tier] || TIER_FEATURES[TIERS.COMMUNITY],
+    limits: {
+      maxUsers: payload.maxUsers !== undefined ? payload.maxUsers : baseLimits.maxUsers,
+      maxProjects: payload.maxProjects !== undefined ? payload.maxProjects : baseLimits.maxProjects,
+      maxBugs: payload.maxBugs !== undefined ? payload.maxBugs : baseLimits.maxBugs,
+      maxAttachmentSizeMB: baseLimits.maxAttachmentSizeMB,
+      aiRequestsPerMonth: baseLimits.aiRequestsPerMonth
+    },
+    licensee: payload.licensee || null,
+    company: payload.company || null,
+    email: payload.email || null,
+    expiresAt: expiresAt ? expiresAt.toISOString() : null,
+    gracePeriodEnds: null
+  };
+};
+
 const buildStatus = (licenseRow) => {
   const now = new Date();
   const expiresAt = licenseRow.expires_at ? new Date(licenseRow.expires_at) : null;
@@ -81,6 +109,7 @@ const buildStatus = (licenseRow) => {
     limits: {
       maxUsers: licenseRow.max_users !== undefined ? licenseRow.max_users : baseLimits.maxUsers,
       maxProjects: licenseRow.max_projects !== undefined ? licenseRow.max_projects : baseLimits.maxProjects,
+      maxBugs: baseLimits.maxBugs,
       maxAttachmentSizeMB: baseLimits.maxAttachmentSizeMB,
       aiRequestsPerMonth: baseLimits.aiRequestsPerMonth
     },
@@ -95,7 +124,18 @@ const buildStatus = (licenseRow) => {
 const initialize = async () => {
   try {
     if (!isDatabaseMode()) {
-      console.log('[License] CSV storage mode — Community Edition active');
+      const deploymentConfig = require('../config/deployment.config');
+      const local = deploymentConfig.reloadLocalConfig();
+      if (local.activatedLicenseKey) {
+        const validation = await validateLicense(local.activatedLicenseKey);
+        if (validation.valid) {
+          cachedStatus = buildStatusFromPayload(validation.payload);
+          cacheExpiry = Date.now() + licenseConfig.cacheExpiryMs;
+          console.log(`[License] CSV mode — tier from registered key: ${cachedStatus.tier.toUpperCase()}`);
+          return;
+        }
+      }
+      console.log('[License] CSV storage mode — Community Edition (register at portal for tracked license)');
       cachedStatus = getCommunityStatus();
       cacheExpiry = Date.now() + licenseConfig.cacheExpiryMs;
       return;
@@ -141,6 +181,16 @@ const getLicenseStatus = async () => {
 
   try {
     if (!isDatabaseMode()) {
+      const deploymentConfig = require('../config/deployment.config');
+      const local = deploymentConfig.reloadLocalConfig();
+      if (local.activatedLicenseKey) {
+        const validation = await validateLicense(local.activatedLicenseKey);
+        if (validation.valid) {
+          cachedStatus = buildStatusFromPayload(validation.payload);
+          cacheExpiry = Date.now() + licenseConfig.cacheExpiryMs;
+          return cachedStatus;
+        }
+      }
       return getCommunityStatus();
     }
 
@@ -243,27 +293,63 @@ const deactivateLicense = async () => {
   return getLicenseStatus();
 };
 
+const countUsers = async () => {
+  if (isDatabaseMode()) {
+    const rows = await getDb().query(`SELECT COUNT(*) AS count FROM users`);
+    return Number(rows[0].count);
+  }
+  const users = await getStorage().getAllUsers();
+  return users.length;
+};
+
+const countProjects = async () => {
+  if (isDatabaseMode()) {
+    const rows = await getDb().query(`SELECT COUNT(*) AS count FROM projects`);
+    return Number(rows[0].count);
+  }
+  const projects = await getStorage().getAllProjects(null, true);
+  return projects.length;
+};
+
+const countBugs = async () => {
+  if (isDatabaseMode()) {
+    const rows = await getDb().query(`SELECT COUNT(*) AS count FROM bugs`);
+    return Number(rows[0].count);
+  }
+  const bugs = await getStorage().getAllBugs(100000);
+  return bugs.length;
+};
+
 const checkLimit = async (type) => {
   const status = await getLicenseStatus();
   const limits = status.limits;
 
   if (type === 'users') {
     if (limits.maxUsers === null) return { allowed: true, current: null, max: null };
-    if (!isDatabaseMode()) return { allowed: true, current: null, max: null };
-    const rows = await getDb().query(`SELECT COUNT(*) AS count FROM users`);
-    const count = Number(rows[0].count);
+    const count = await countUsers();
     return { allowed: count < limits.maxUsers, current: count, max: limits.maxUsers };
   }
 
   if (type === 'projects') {
     if (limits.maxProjects === null) return { allowed: true, current: null, max: null };
-    if (!isDatabaseMode()) return { allowed: true, current: null, max: null };
-    const rows = await getDb().query(`SELECT COUNT(*) AS count FROM projects`);
-    const count = Number(rows[0].count);
+    const count = await countProjects();
     return { allowed: count < limits.maxProjects, current: count, max: limits.maxProjects };
   }
 
+  if (type === 'bugs') {
+    if (limits.maxBugs === null) return { allowed: true, current: null, max: null };
+    const count = await countBugs();
+    return { allowed: count < limits.maxBugs, current: count, max: limits.maxBugs };
+  }
+
   return { allowed: true, current: null, max: null };
+};
+
+const getAttachmentLimitBytes = async () => {
+  const status = await getLicenseStatus();
+  const maxMB = status.limits.maxAttachmentSizeMB;
+  if (maxMB === null || maxMB === undefined) return null;
+  return maxMB * 1024 * 1024;
 };
 
 const invalidateCache = () => {
@@ -278,5 +364,6 @@ module.exports = {
   deactivateLicense,
   getLicenseStatus,
   checkLimit,
+  getAttachmentLimitBytes,
   invalidateCache
 };

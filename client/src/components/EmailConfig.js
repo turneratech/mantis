@@ -2,8 +2,11 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import MultiSelect from './MultiSelect';
 import './EmailConfig.css';
+import { FeatureGuard } from './common/FeatureGuard';
+import { useLicense } from '../hooks/useLicense';
 
 function EmailConfig() {
+  const { promptUpgrade } = useLicense();
   // Tab state
   const [activeTab, setActiveTab] = useState('smtp');
   
@@ -300,6 +303,20 @@ function EmailConfig() {
   // ==================== RENDER ====================
 
   return (
+    <FeatureGuard
+      feature="email_reports"
+      fallback={
+        <div className="card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '520px', margin: '2rem auto' }}>
+          <h2>Email Reports — Professional Plan</h2>
+          <p style={{ color: '#666', marginBottom: '1rem' }}>
+            SMTP configuration and scheduled email reports require a Professional license.
+          </p>
+          <button type="button" className="btn btn-primary" onClick={() => promptUpgrade('email_reports')}>
+            Upgrade to unlock
+          </button>
+        </div>
+      }
+    >
     <div className="email-config">
       <div className="config-header">
         <h1>📧 Email Configuration</h1>
@@ -968,6 +985,7 @@ function EmailConfig() {
         )}
       </div>
     </div>
+    </FeatureGuard>
   );
 }
 

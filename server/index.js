@@ -14,6 +14,7 @@ const emailService = require('./services/emailService');
 const licenseService = require('./services/licenseService');
 const licenseRoutes = require('./routes/license');
 const deploymentRoutes = require('./routes/deployment');
+const setupRoutes = require('./routes/setup');
 const { attachLicenseInfo } = require('./middleware/licenseValidator');
 const webhookService = require('./services/webhookService');
 const fileStorageService = require('./services/fileStorageService');
@@ -62,7 +63,8 @@ app.use('/imgs', express.static(path.join(__dirname, '../../imgs')));
 // Attach license info to every request (cached, non-blocking)
 app.use(attachLicenseInfo);
 
-// API Routes
+// API Routes (setup is public until first-run wizard completes)
+app.use('/api/setup', setupRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/bugs', bugRoutes);
 app.use('/api/projects', projectRoutes);
@@ -155,6 +157,11 @@ const startServer = async () => {
     console.log('');
     
     // Start Express server
+    const setupService = require('./services/setupService');
+    const setupComplete = setupService.isSetupComplete();
+    const devDefaults =
+      process.env.NODE_ENV === 'development' || process.env.MANTIS_DEV_DEFAULTS === 'true';
+
     app.listen(PORT, () => {
       console.log(`✓ Server running on port ${PORT}`);
       console.log(`  Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -164,7 +171,12 @@ const startServer = async () => {
       console.log(`  • Health:      http://localhost:${PORT}/api/health`);
       console.log(`  • Attachments: http://localhost:${PORT}/api/attachments`);
       console.log('');
-      console.log('Default credentials: admin / admin123');
+      if (!setupComplete) {
+        console.log('  → First-run setup: http://localhost:3000/mantis/setup');
+        console.log('    (or complete via /api/setup on this server)');
+      } else if (devDefaults) {
+        console.log('  Dev credentials: admin / admin123');
+      }
       console.log('');
     });
     

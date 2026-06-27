@@ -1,8 +1,33 @@
 # Mantis Project Cache
 
-Last scanned: 2026-06-12.
+**Last updated:** 2026-06-13  
+**For AI agents:** Read this file + `docs/SITE_MAP.md` before exploring the repo. Do not re-scan unless editing those areas or this file is stale (>2 weeks).
 
-Use this file as a compact context cache for future AI/code-agent work. It summarizes the repo shape, entry points, and high-value files to inspect first. Treat it as a navigation aid, not as a substitute for reading the exact file before editing.
+## Current Production State (TurnerTech)
+
+| Item | Value | Status |
+|------|--------|--------|
+| Marketing page | https://turneratech.com/mantis/ | WordPress + Elementor HTML widget (`portal/wordpress/mantis-elementor.html`) |
+| License API | https://license.turneratech.com | **NOT DEPLOYED** — returns 503; register form fails until portal runs on EC2 |
+| GitHub repo | https://github.com/dev-gauravd/mantis.git | SSH remote works |
+| Sales email | sales@turneratech.com | |
+| Hosting split | Namecheap = WordPress only; EC2 = Node portal API (+ optional Mantis demo) | See `docs/PORTAL_EC2_DEPLOY.md` |
+
+**WordPress form config** (inside Elementor HTML):
+
+```javascript
+MANTIS_CONFIG = {
+  portalApiUrl: 'https://license.turneratech.com',
+  githubUrl: 'https://github.com/dev-gauravd/mantis',
+  ...
+};
+```
+
+**Blockers:** (1) Deploy `portal/` to EC2 + DNS A record `license` → Elastic IP. (2) Turn off WP maintenance mode on `/mantis/` when testing. (3) Copy `LICENSE_PUBLIC_KEY` from `portal/data/mantis-env-snippet.txt` on EC2 into Mantis `.env`.
+
+**Next user steps:** Follow `docs/PORTAL_EC2_DEPLOY.md` → test `curl https://license.turneratech.com/api/config` → re-paste updated Elementor HTML if needed.
+
+---
 
 ## Project Summary
 
@@ -21,6 +46,8 @@ Main runtime:
 - Client entry: `client/src/index.js`
 - Client app/router/auth context: `client/src/App.js`
 - Storage factory: `server/storage/index.js`
+- **Portal** (separate app): `portal/server.js` — port 4000, license registration API
+- **Setup wizard**: `client/src/components/SetupWizard.js` + `server/services/setupService.js`
 
 ## Commands
 
@@ -28,6 +55,9 @@ Run from repo root:
 
 - `npm run install-all` - install root and client dependencies
 - `npm run dev` - run Express server and React client together
+- `npm run dev:all` - Mantis + React + **portal** concurrently
+- `npm run portal` - license portal only (`portal/server.js`, :4000)
+- `npm run portal:install` - install portal deps
 - `npm run server` - run `server/index.js` with nodemon
 - `npm run client` - run React dev server from `client/`
 - `npm run build` - build React client
@@ -65,6 +95,7 @@ The client is configured for subdirectory deployment:
 
 Mounted route modules:
 
+- `/api/setup` -> `server/routes/setup.js` (**public until setup complete**)
 - `/api/auth` -> `server/routes/auth.js`
 - `/api/bugs` -> `server/routes/bugs.js`
 - `/api/projects` -> `server/routes/projects.js`
@@ -73,6 +104,7 @@ Mounted route modules:
 - `/api/webhooks` -> `server/routes/github-webhook.js`
 - `/api/email` -> `server/routes/email.js`
 - `/api/license` -> `server/routes/license.js`
+- `/api/deployment` -> `server/routes/deployment.js` (admin deployment config)
 
 Important middleware/services:
 
@@ -81,7 +113,36 @@ Important middleware/services:
 - `server/services/licenseService.js` - license status, activation, validation, cached community fallback
 - `server/services/featureService.js` - feature availability and feature usage logging
 - `server/services/emailService.js` - SMTP config and scheduled report handling
+- `server/services/setupService.js` - first-run setup state, bootstrap admin, `setupComplete` flag
 - `server/utils/jwtHelper.js` - ES256 license JWT helpers
+
+## First-Run Setup Wizard
+
+When `setupService.isSetupComplete()` is false, the app shows **SetupWizard** instead of login (all routes → wizard).
+
+- State file: `server/data/deployment.local.json` (`setupComplete: true/false`)
+- Public API: `/api/setup/*` until complete
+- Steps: welcome → create admin → database → storage → license → done
+- CSV prod: no auto `admin/admin123`; use `MANTIS_DEV_DEFAULTS=true` or `NODE_ENV=development` for dev defaults
+- Setup wizard fetches portal license via `client/src/config/portal.js` → `POST {PORTAL_URL}/api/licenses/fetch`
+
+Key files: `server/routes/setup.js`, `client/src/components/SetupWizard.js`, `client/src/App.js` (needsSetup gate).
+
+## License Portal (separate Node app)
+
+Directory: `portal/` — **not** part of main Express server; deploy separately on EC2.
+
+- Entry: `portal/server.js` (port `PORTAL_PORT`, default 4000)
+- Data: `portal/data/` (gitignored) — `store.json`, `license-keys.json`, ES256 key pair
+- On first start writes `portal/data/mantis-env-snippet.txt` with `LICENSE_PUBLIC_KEY` for Mantis instances
+- CORS allows `https://turneratech.com`, `https://www.turneratech.com`
+- Env: `portal/.env.example` — `PORTAL_JWT_SECRET`, `MANTIS_INSTALL_URL`
+
+Portal API endpoints: `GET /api/config`, `POST /api/register`, `POST /api/login`, `POST /api/licenses/issue`, `POST /api/licenses/fetch`, `POST /api/licenses/validate`, `GET /api/public-key`
+
+WordPress marketing: `portal/wordpress/mantis-elementor.html` — paste into Elementor; `mnApi()` shows errors if API down.
+
+Docs: `docs/PORTAL.md`, `docs/PORTAL_EC2_DEPLOY.md`, `portal/wordpress/README.md`
 
 ## Storage Architecture
 
@@ -359,8 +420,18 @@ Core:
 License:
 
 - `LICENSE_VALIDATION_URL`
+- `LICENSE_PUBLIC_KEY` — from portal EC2 `mantis-env-snippet.txt`
 - `ENABLE_ONLINE_VALIDATION`
 - `ENABLE_FEATURE_TRACKING`
+- `REACT_APP_PORTAL_URL` — client portal URL for setup wizard license fetch
+
+Setup / dev:
+
+- `MANTIS_DEV_DEFAULTS=true` — CSV mode dev admin + skip prod restrictions
+
+Portal (EC2 `.env` in `portal/`):
+
+- `PORTAL_PORT`, `PORTAL_JWT_SECRET`, `MANTIS_INSTALL_URL`
 
 Attachments:
 
@@ -386,3 +457,17 @@ AI/reporting:
 - License service intentionally fails open/defaults to Community for availability.
 - Client app is deployed under `/mantis`; route and asset paths should respect that.
 - `featureService.min.js` and `licenseService.min.js`, if present, are minified and should not be modified.
+- **WordPress register form** calls external portal API — Namecheap cannot host it; EC2 required.
+- **Email service** skipped when storage is CSV-only (scheduled reports need SQL).
+- Logo: `client/src/utils/brandAssets.js` → `client/src/assets/logo_small.png`; favicon in `client/public/`.
+
+## Doc Index
+
+| File | Purpose |
+|------|---------|
+| `docs/PROJECT_CACHE.md` | This file — architecture + production state |
+| `docs/SITE_MAP.md` | Browser routes + API map |
+| `docs/DEPLOYMENT.md` | Self-hosted Mantis (DB, S3, Azure, webhooks) |
+| `docs/PORTAL.md` | Local portal dev |
+| `docs/PORTAL_EC2_DEPLOY.md` | EC2 + nginx + certbot for license API |
+| `CLAUDE.md` | Quick command reference for agents |

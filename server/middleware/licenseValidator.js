@@ -58,4 +58,25 @@ const checkLimit = (limitType) => async (req, res, next) => {
   }
 };
 
-module.exports = { attachLicenseInfo, requireFeature, checkLimit };
+// Middleware factory: enforce attachment size against tier limit (run after multer)
+const enforceAttachmentSize = async (req, res, next) => {
+  try {
+    if (!req.file) return next();
+    const maxBytes = await licenseService.getAttachmentLimitBytes();
+    if (maxBytes === null) return next();
+    if (req.file.size > maxBytes) {
+      const maxMB = Math.round(maxBytes / (1024 * 1024));
+      return res.status(403).json({
+        error: `Attachment size exceeds ${maxMB}MB limit for your license tier`,
+        maxSizeMB: maxMB,
+        upgradeRequired: true
+      });
+    }
+    next();
+  } catch (error) {
+    console.warn('[License] Attachment size check error:', error.message);
+    next();
+  }
+};
+
+module.exports = { attachLicenseInfo, requireFeature, checkLimit, enforceAttachmentSize };

@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../App';
+import { useLicense } from '../hooks/useLicense';
 
 function ProjectForm() {
   const { projectId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { getLimitInfo, isAtLimit, promptUpgrade } = useLicense();
   const isEditing = Boolean(projectId);
+  const projectLimit = getLimitInfo('projects');
+  const atProjectLimit = !isEditing && isAtLimit('projects');
   
   // Check if user has elevated privileges
   const hasElevatedPrivileges = user?.role === 'godmode' || user?.role === 'admin';
@@ -139,6 +143,15 @@ function ProjectForm() {
       <div className="page-header">
         <h1 className="page-title">{isEditing ? 'Edit Project' : 'Create New Project'}</h1>
       </div>
+
+      {!isEditing && atProjectLimit && (
+        <div className="error-message" style={{ marginBottom: '1rem' }}>
+          Project limit reached ({projectLimit.current}/{projectLimit.max}). Upgrade to Professional for unlimited projects.{' '}
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => promptUpgrade('priority_support')}>
+            View plans
+          </button>
+        </div>
+      )}
 
       <div className="card">
         {error && <div className="error-message">{error}</div>}
@@ -339,7 +352,7 @@ function ProjectForm() {
 
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button type="submit" className="btn btn-primary" disabled={submitting || deleting}>
+              <button type="submit" className="btn btn-primary" disabled={submitting || deleting || atProjectLimit}>
                 {submitting ? 'Saving...' : (isEditing ? 'Update Project' : 'Create Project')}
               </button>
               <Link to="/projects" className="btn btn-secondary">

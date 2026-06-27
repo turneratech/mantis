@@ -55,11 +55,12 @@ router.post('/validate', authMiddleware, isAdmin, async (req, res) => {
 // GET /api/license/limits — Auth: current resource counts vs tier limits
 router.get('/limits', authMiddleware, async (req, res) => {
   try {
-    const [users, projects] = await Promise.all([
+    const [users, projects, bugs] = await Promise.all([
       licenseService.checkLimit('users'),
-      licenseService.checkLimit('projects')
+      licenseService.checkLimit('projects'),
+      licenseService.checkLimit('bugs')
     ]);
-    res.json({ users, projects });
+    res.json({ users, projects, bugs });
   } catch (error) {
     res.status(500).json({ error: 'Failed to retrieve limit information' });
   }

@@ -2,9 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../App';
+import { useLicense } from '../hooks/useLicense';
 
 function ProjectList() {
   const { user } = useAuth();
+  const { getLimitInfo, isAtLimit, promptUpgrade } = useLicense();
+  const projectLimit = getLimitInfo('projects');
+  const atProjectLimit = isAtLimit('projects');
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [projectStats, setProjectStats] = useState({});
@@ -46,11 +50,32 @@ function ProjectList() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Projects ({projects.length})</h1>
-        {hasElevatedPrivileges && (
+        <div>
+          <h1 className="page-title">Projects ({projects.length})</h1>
+          {projectLimit.max !== null && (
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: atProjectLimit ? '#e67e22' : '#666' }}>
+              {projectLimit.current ?? projects.length}/{projectLimit.max} projects on Community plan
+            </p>
+          )}
+        </div>
+        {hasElevatedPrivileges && !atProjectLimit && (
           <Link to="/projects/new" className="btn btn-primary">+ New Project</Link>
         )}
+        {hasElevatedPrivileges && atProjectLimit && (
+          <button type="button" className="btn btn-secondary" onClick={() => promptUpgrade('priority_support')}>
+            + New Project (limit reached)
+          </button>
+        )}
       </div>
+
+      {atProjectLimit && (
+        <div className="error-message" style={{ marginBottom: '1rem' }}>
+          Project limit reached. Upgrade to Professional for unlimited projects.{' '}
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => promptUpgrade('priority_support')}>
+            View plans
+          </button>
+        </div>
+      )}
 
       {projects.length === 0 ? (
         <div className="empty-state">
@@ -60,7 +85,7 @@ function ProjectList() {
               ? 'Create your first project to get started.'
               : 'You haven\'t been assigned to any projects yet.'}
           </p>
-          {hasElevatedPrivileges && (
+          {hasElevatedPrivileges && !atProjectLimit && (
             <Link to="/projects/new" className="btn btn-primary" style={{ marginTop: '1rem' }}>
               Create Project
             </Link>

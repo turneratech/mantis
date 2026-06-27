@@ -6,8 +6,11 @@ import {
   PieChart, Pie, Cell, AreaChart, Area, LineChart, Line
 } from 'recharts';
 import './ReportGenerator.css';
+import { FeatureGuard } from './common/FeatureGuard';
+import { useLicense } from '../hooks/useLicense';
 
 function ReportGenerator() {
+  const { promptUpgrade } = useLicense();
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [reportType, setReportType] = useState('weekly');
@@ -391,6 +394,20 @@ function ReportGenerator() {
   };
 
   return (
+    <FeatureGuard
+      feature="advanced_reporting"
+      fallback={
+        <div className="card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '520px', margin: '2rem auto' }}>
+          <h2>Advanced Reporting — Professional Plan</h2>
+          <p style={{ color: '#666', marginBottom: '1rem' }}>
+            PDF reports, AI commentary, and stakeholder dashboards require a Professional license.
+          </p>
+          <button type="button" className="btn btn-primary" onClick={() => promptUpgrade('advanced_reporting')}>
+            Upgrade to unlock
+          </button>
+        </div>
+      }
+    >
     <div className="report-generator">
       <div className="dashboard-header">
         <h1>📊 PM Report Generator</h1>
@@ -1215,6 +1232,7 @@ function ReportGenerator() {
         </div>
       )}
     </div>
+    </FeatureGuard>
   );
 }
 

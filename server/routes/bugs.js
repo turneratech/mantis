@@ -18,6 +18,7 @@ const express = require('express');
 const storage = require('../storage');
 const { query } = require('../storage/sqlDb')();
 const { authMiddleware } = require('../middleware/auth');
+const { checkLimit } = require('../middleware/licenseValidator');
 const webhookService = require('../services/webhookService');
 
 const router = express.Router();
@@ -208,7 +209,7 @@ router.get('/:projectKey/:bugId', authMiddleware, async (req, res) => {
 });
 
 // Create new bug
-router.post('/:projectKey', authMiddleware, async (req, res) => {
+router.post('/:projectKey', authMiddleware, checkLimit('bugs'), async (req, res) => {
   try {
     const projectKey = req.params.projectKey.toUpperCase();
     

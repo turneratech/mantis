@@ -753,9 +753,11 @@ const getStorageType = () => 'csv';
 const isConnected = async () => true;
 
 const initialize = async () => {
-  // Create default admin user if not exists
   const users = await readCSV(FILES.USERS);
-  if (users.length === 0) {
+  const allowDevDefaults =
+    process.env.NODE_ENV === 'development' || process.env.MANTIS_DEV_DEFAULTS === 'true';
+
+  if (allowDevDefaults && users.length === 0) {
     const hashedPassword = await bcrypt.hash('admin123', 10);
     await createUser({
       id: uuidv4(),
@@ -764,12 +766,13 @@ const initialize = async () => {
       email: 'admin@example.com',
       role: 'admin'
     });
-    console.log('Default admin user created (username: admin, password: admin123)');
+    console.log('[CSV] Dev default admin created (username: admin, password: admin123)');
+  } else if (users.length === 0) {
+    console.log('[CSV] No users yet — complete first-run setup at /mantis/setup');
   }
-  
-  // Create default projects if not exists
+
   const projects = await readCSV(FILES.PROJECTS);
-  if (projects.length === 0) {
+  if (allowDevDefaults && projects.length === 0) {
     const defaultProjects = [
       { name: 'SandMaster', key: 'SM', description: 'AI-driven sand management system', client: 'Internal' },
       { name: 'RockMaster', key: 'RM', description: 'ML-based well log prediction system', client: 'Internal' },
@@ -785,7 +788,7 @@ const initialize = async () => {
         members: ['admin']
       });
     }
-    console.log('Default projects created');
+    console.log('[CSV] Dev default projects created');
   }
   
   return true;

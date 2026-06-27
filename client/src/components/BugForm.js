@@ -5,12 +5,16 @@ import MultiSelect from './MultiSelect';
 import FileUpload from './FileUpload';
 import AttachmentList from './AttachmentList';
 import { useAuth } from '../App';
+import { useLicense } from '../hooks/useLicense';
 
 function BugForm() {
   const { projectKey, bugId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const isEditing = Boolean(bugId);
+  const { getLimitInfo, isAtLimit, promptUpgrade } = useLicense();
+  const bugLimit = getLimitInfo('bugs');
+  const atBugLimit = !isEditing && isAtLimit('bugs');
   const [bugReporter, setBugReporter] = useState(''); 
   // Check if user can delete bugs/comments (admin/godmode only)
   const canDelete = user && (user.role === 'admin' || user.role === 'godmode');
@@ -247,6 +251,15 @@ function BugForm() {
           </h1>
         </div>
       </div>
+
+      {atBugLimit && (
+        <div className="error-message" style={{ marginBottom: '1rem' }}>
+          Bug limit reached ({bugLimit.current}/{bugLimit.max}). Upgrade to Professional for unlimited bugs.{' '}
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => promptUpgrade('priority_support')}>
+            View plans
+          </button>
+        </div>
+      )}
 
       <div className="card">
         {error && <div className="error-message">{error}</div>}
@@ -551,7 +564,7 @@ function BugForm() {
 
           <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem', justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
+              <button type="submit" className="btn btn-primary" disabled={submitting || atBugLimit}>
                 {submitting ? 'Saving...' : (isEditing ? 'Update Bug' : 'Create Bug')}
               </button>
               <Link 

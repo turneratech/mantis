@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
 import HelpModal from './HelpModal';
+import { LicenseStatus } from './common/LicenseStatus';
 import logoSmall from '../utils/brandAssets';
 
 function Navbar() {
@@ -154,7 +155,9 @@ function Navbar() {
           </button>
           
           <span className="user-info">
-            {user?.username} 
+            <LicenseStatus />
+            {' '}
+            {user?.username}
             <span className={`role-badge ${getRoleBadgeClass(user?.role)}`}>
               {getRoleDisplayName(user?.role)}
             </span>

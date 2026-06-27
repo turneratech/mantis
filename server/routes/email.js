@@ -12,6 +12,8 @@ const storage = require('../storage');
 const getSqlDb = require('../storage/sqlDb');
 const emailService = require('../services/emailService');
 const { authMiddleware } = require('../middleware/auth');
+const { requireFeature } = require('../middleware/licenseValidator');
+const { FEATURES } = require('../config/features');
 
 const query = (...args) => getSqlDb().query(...args);
 
@@ -25,6 +27,7 @@ const requireSqlStorage = (req, res, next) => {
 };
 
 router.use(requireSqlStorage);
+router.use(requireFeature(FEATURES.EMAIL_REPORTS));
 
 // Helper to check admin/godmode
 const hasElevatedPrivileges = (user) => {

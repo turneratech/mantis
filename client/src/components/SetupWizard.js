@@ -1,46 +1,69 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { useAuth } from '../App';
-import { useLicense } from '../hooks/useLicense';
+import logoSmall from '../utils/brandAssets';
+import { PORTAL_URL, portalRegisterUrl } from '../config/portal';
 import './SetupWizard.css';
 
-const STEPS = ['welcome', 'database', 'storage', 'license', 'done'];
+const BASE_STEPS = ['welcome', 'admin', 'database', 'storage', 'license', 'done'];
 
-function SetupWizard({ onComplete }) {
-  const { user } = useAuth();
-  const { license, activateLicense, refreshLicense } = useLicense();
+function SetupWizard({ onComplete, initialStatus = null }) {
+  const [status, setStatus] = useState(initialStatus);
   const [step, setStep] = useState(0);
   const [providers, setProviders] = useState(null);
   const [settings, setSettings] = useState({
     database: { provider: 'auto', mysql: { host: 'localhost', port: 3306, user: 'mantis', database: 'mantis', password: '' } },
     storage: { default: 'local' }
   });
+  const [adminForm, setAdminForm] = useState({
+    username: '',
+    password: '',
+    confirmPassword: '',
+    email: ''
+  });
+  const [authSession, setAuthSession] = useState(null);
   const [licenseKey, setLicenseKey] = useState('');
-  const [skipLicense, setSkipLicense] = useState(false);
+  const [licenseMode, setLicenseMode] = useState('portal');
+  const [portalEmail, setPortalEmail] = useState('');
+  const [portalPassword, setPortalPassword] = useState('');
+  const [portalTier, setPortalTier] = useState('community');
   const [testing, setTesting] = useState('');
   const [message, setMessage] = useState({ type: '', text: '' });
   const [saving, setSaving] = useState(false);
 
+  const steps = useMemo(() => {
+    if (status && !status.needsBootstrapAdmin) {
+      return BASE_STEPS.filter(s => s !== 'admin');
+    }
+    return BASE_STEPS;
+  }, [status]);
+
   useEffect(() => {
-    axios.get('/api/deployment/providers').then(r => setProviders(r.data)).catch(() => {});
+    if (initialStatus) return;
+    axios.get('/api/setup/status')
+      .then(res => setStatus(res.data))
+      .catch(() => setStatus({ needsSetup: true, needsBootstrapAdmin: true }));
+  }, [initialStatus]);
+
+  useEffect(() => {
+    axios.get('/api/setup/providers').then(r => setProviders(r.data)).catch(() => {});
   }, []);
 
-  const currentStep = STEPS[step];
+  const currentStep = steps[step];
   const stepNum = step + 1;
-  const totalSteps = STEPS.length;
+  const totalSteps = steps.length;
 
   const showMsg = (type, text) => setMessage({ type, text });
 
   const testDatabase = async () => {
     setTesting('db');
     try {
-      const res = await axios.post('/api/deployment/test/database', {
+      const res = await axios.post('/api/setup/test/database', {
         provider: settings.database.provider,
         config: settings.database
       });
       showMsg(res.data.success ? 'success' : 'error', res.data.message);
     } catch (err) {
-      showMsg('error', err.response?.data?.message || err.message);
+      showMsg('error', err.response?.data?.error || err.response?.data?.message || err.message);
     } finally {
       setTesting('');
     }
@@ -49,30 +72,83 @@ function SetupWizard({ onComplete }) {
   const testStorage = async () => {
     setTesting('storage');
     try {
-      const res = await axios.post('/api/deployment/test/storage', { provider: settings.storage.default });
+      const res = await axios.post('/api/setup/test/storage', { provider: settings.storage.default });
       showMsg(res.data.success ? 'success' : 'error', res.data.message);
     } catch (err) {
-      showMsg('error', err.message);
+      showMsg('error', err.response?.data?.error || err.message);
     } finally {
       setTesting('');
     }
   };
 
+  const bootstrapAdmin = async () => {
+    const { username, password, confirmPassword, email } = adminForm;
+    if (!username.trim() || username.trim().length < 3) {
+      showMsg('error', 'Username must be at least 3 characters');
+      return false;
+    }
+    if (password.length < 8) {
+      showMsg('error', 'Password must be at least 8 characters');
+      return false;
+    }
+    if (password !== confirmPassword) {
+      showMsg('error', 'Passwords do not match');
+      return false;
+    }
+
+    const res = await axios.post('/api/setup/bootstrap-admin', {
+      username: username.trim(),
+      password,
+      email: email.trim()
+    });
+    setAuthSession(res.data);
+    localStorage.setItem('token', res.data.token);
+    showMsg('success', `Administrator "${res.data.user.username}" created`);
+    return true;
+  };
+
+  const fetchPortalLicense = async () => {
+    if (!portalEmail.trim() || !portalPassword) {
+      showMsg('error', 'Enter your TurnerTech portal email and password');
+      return false;
+    }
+    const res = await fetch(`${PORTAL_URL}/api/licenses/fetch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: portalEmail.trim(),
+        password: portalPassword,
+        instanceId: status?.instanceId,
+        tier: portalTier
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch license');
+    setLicenseKey(data.licenseKey);
+    setSkipLicense(false);
+    showMsg('success', `License fetched (${data.tier}${data.reused ? ', existing key' : ''})`);
+    return true;
+  };
+
   const saveAndNext = async () => {
     setSaving(true);
+    setMessage({ type: '', text: '' });
     try {
+      if (currentStep === 'admin') {
+        const ok = await bootstrapAdmin();
+        if (!ok) return;
+      }
       if (currentStep === 'database' || currentStep === 'storage') {
-        await axios.post('/api/deployment/settings', settings);
+        await axios.post('/api/setup/settings', settings);
         if (currentStep === 'database') {
-          showMsg('success', 'Database settings saved. Restart server after setup for DB changes.');
+          showMsg('success', 'Database settings saved. Restart the server after setup for DB changes.');
         }
       }
-      if (currentStep === 'license' && licenseKey.trim()) {
-        await activateLicense(licenseKey.trim());
-        await refreshLicense();
-        showMsg('success', 'License activated!');
+      if (currentStep === 'license' && licenseMode === 'portal') {
+        const ok = await fetchPortalLicense();
+        if (!ok) return;
       }
-      setStep(s => Math.min(s + 1, STEPS.length - 1));
+      setStep(s => Math.min(s + 1, steps.length - 1));
     } catch (err) {
       showMsg('error', err.response?.data?.error || err.message);
     } finally {
@@ -83,8 +159,11 @@ function SetupWizard({ onComplete }) {
   const finishSetup = async () => {
     setSaving(true);
     try {
-      await axios.post('/api/deployment/setup/complete', { licenseSkipped: skipLicense || license.tier === 'community' });
-      onComplete();
+      await axios.post('/api/setup/complete', {
+        licenseKey: licenseKey.trim(),
+        username: authSession?.user?.username
+      });
+      onComplete(authSession);
     } catch (err) {
       showMsg('error', err.response?.data?.error || 'Failed to complete setup');
     } finally {
@@ -92,15 +171,27 @@ function SetupWizard({ onComplete }) {
     }
   };
 
+  if (!status) {
+    return <div className="setup-wizard"><div className="setup-wizard-card"><p>Loading setup…</p></div></div>;
+  }
+
   return (
     <div className="setup-wizard">
       <div className="setup-wizard-card">
+        <div className="setup-brand">
+          <img src={logoSmall} alt="Mantis" className="setup-logo" />
+        </div>
+
         <div className="setup-progress">
           Step {stepNum} of {totalSteps}
           <div className="setup-progress-bar">
             <div className="setup-progress-fill" style={{ width: `${(stepNum / totalSteps) * 100}%` }} />
           </div>
         </div>
+
+        {status.instanceId && (
+          <p className="setup-instance-id">Instance ID: <code>{status.instanceId}</code></p>
+        )}
 
         {message.text && (
           <div className={`setup-alert setup-alert-${message.type}`}>{message.text}</div>
@@ -109,13 +200,63 @@ function SetupWizard({ onComplete }) {
         {currentStep === 'welcome' && (
           <div className="setup-step">
             <h1>Welcome to Mantis</h1>
-            <p>Let&apos;s configure your self-hosted bug tracker. You&apos;ll connect your database, file storage, and optional license key.</p>
+            <p>
+              This wizard configures your self-hosted instance. Your administrator account is created
+              here on your server — not on turneratech.com.
+            </p>
             <ul className="setup-features">
-              <li>Bring your own MySQL, PostgreSQL, or Supabase database</li>
-              <li>Store attachments on S3, Azure, SharePoint, or locally</li>
-              <li>Sync events to external systems via webhooks</li>
-              <li>Community Edition works free — upgrade anytime</li>
+              <li>Create your local administrator account</li>
+              <li>Connect MySQL, PostgreSQL, or Supabase</li>
+              <li>Configure file storage (local, S3, Azure)</li>
+              <li>Register at TurnerTech portal and activate your license (Community is free)</li>
             </ul>
+          </div>
+        )}
+
+        {currentStep === 'admin' && (
+          <div className="setup-step">
+            <h2>Create Administrator</h2>
+            <p>This account manages your Mantis instance. Choose a strong password.</p>
+            <div className="setup-grid">
+              <label>
+                Username
+                <input
+                  value={adminForm.username}
+                  onChange={e => setAdminForm(f => ({ ...f, username: e.target.value }))}
+                  placeholder="admin"
+                  autoComplete="username"
+                />
+              </label>
+              <label>
+                Email <span className="setup-optional">(optional)</span>
+                <input
+                  type="email"
+                  value={adminForm.email}
+                  onChange={e => setAdminForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="you@company.com"
+                  autoComplete="email"
+                />
+              </label>
+              <label>
+                Password
+                <input
+                  type="password"
+                  value={adminForm.password}
+                  onChange={e => setAdminForm(f => ({ ...f, password: e.target.value }))}
+                  placeholder="At least 8 characters"
+                  autoComplete="new-password"
+                />
+              </label>
+              <label>
+                Confirm password
+                <input
+                  type="password"
+                  value={adminForm.confirmPassword}
+                  onChange={e => setAdminForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                  autoComplete="new-password"
+                />
+              </label>
+            </div>
           </div>
         )}
 
@@ -179,22 +320,81 @@ function SetupWizard({ onComplete }) {
 
         {currentStep === 'license' && (
           <div className="setup-step">
-            <h2>License</h2>
-            <p>Enter your license key from turneratech.com, or continue with Community Edition (5 users, 3 projects).</p>
-            <p className="setup-tier">Current tier: <strong>{license.tier}</strong></p>
-            <label>
-              License key
-              <textarea
-                rows={4}
-                value={licenseKey}
-                onChange={e => setLicenseKey(e.target.value)}
-                placeholder="Paste JWT license key…"
-              />
-            </label>
-            <label className="setup-checkbox">
-              <input type="checkbox" checked={skipLicense} onChange={e => setSkipLicense(e.target.checked)} />
-              Continue with Community Edition for now
-            </label>
+            <h2>License — registration required</h2>
+            <p>
+              Register free at the{' '}
+              <a href={portalRegisterUrl()} target="_blank" rel="noopener noreferrer">TurnerTech portal</a>
+              {' '}(local: {PORTAL_URL}). Every Community user gets a free license key tied to your account.
+              Use your <strong>portal</strong> email and password below — not your Mantis admin password.
+            </p>
+
+            <div className="setup-license-tabs">
+              <button
+                type="button"
+                className={licenseMode === 'portal' ? 'setup-tab active' : 'setup-tab'}
+                onClick={() => setLicenseMode('portal')}
+              >
+                Fetch online (recommended)
+              </button>
+              <button
+                type="button"
+                className={licenseMode === 'paste' ? 'setup-tab active' : 'setup-tab'}
+                onClick={() => setLicenseMode('paste')}
+              >
+                Paste key
+              </button>
+            </div>
+
+            {licenseMode === 'portal' && (
+              <div className="setup-grid">
+                <label>
+                  Portal email
+                  <input
+                    type="email"
+                    value={portalEmail}
+                    onChange={e => setPortalEmail(e.target.value)}
+                    placeholder="you@company.com"
+                    autoComplete="email"
+                  />
+                </label>
+                <label>
+                  Portal password
+                  <input
+                    type="password"
+                    value={portalPassword}
+                    onChange={e => setPortalPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </label>
+                <label>
+                  Tier
+                  <select value={portalTier} onChange={e => setPortalTier(e.target.value)}>
+                    <option value="community">Community (Free)</option>
+                    <option value="professional">Professional</option>
+                  </select>
+                </label>
+              </div>
+            )}
+
+            {(licenseMode === 'paste' || licenseKey) && (
+              <label>
+                License key
+                <textarea
+                  rows={4}
+                  value={licenseKey}
+                  onChange={e => setLicenseKey(e.target.value)}
+                  placeholder="Paste JWT license key from portal registration…"
+                />
+              </label>
+            )}
+
+            <p className="setup-hint">
+              New users: register on the portal first — a Community license is issued automatically.
+            </p>
+            <p className="setup-hint">
+              Ensure <code>LICENSE_PUBLIC_KEY</code> in Mantis <code>.env</code> matches the portal public key
+              (see <code>portal/data/mantis-env-snippet.txt</code> after first portal start).
+            </p>
           </div>
         )}
 
@@ -202,6 +402,9 @@ function SetupWizard({ onComplete }) {
           <div className="setup-step">
             <h2>You&apos;re all set!</h2>
             <p>Mantis is configured. Fine-tune settings anytime under <strong>Deployment</strong> in the nav bar.</p>
+            {settings.database.provider !== 'csv' && (
+              <p className="setup-hint">If you changed the database provider, restart the server before using the app.</p>
+            )}
           </div>
         )}
 
@@ -219,9 +422,12 @@ function SetupWizard({ onComplete }) {
               type="button"
               className="btn-primary"
               onClick={saveAndNext}
-              disabled={saving || (!licenseKey.trim() && !skipLicense)}
+              disabled={saving || (
+                licenseMode === 'paste' ? !licenseKey.trim() :
+                !portalEmail.trim() || !portalPassword
+              )}
             >
-              {saving ? 'Activating…' : 'Continue'}
+              {saving ? 'Fetching…' : 'Continue'}
             </button>
           )}
           {currentStep === 'done' && (

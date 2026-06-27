@@ -17,6 +17,7 @@ const { v4: uuidv4 } = require('uuid');
 // AUTH MIDDLEWARE
 // ============================================
 const { authMiddleware } = require('../middleware/auth');
+const { enforceAttachmentSize } = require('../middleware/licenseValidator');
 const deploymentConfig = require('../config/deployment.config');
 const { getFileStorage, getFileStorageError } = require('../services/fileStorageService');
 
@@ -181,7 +182,7 @@ router.get('/providers', authMiddleware, (req, res) => {
  * POST /api/attachments/:bugId
  * Upload a file to a bug
  */
-router.post('/:bugId', authMiddleware, upload.single('file'), async (req, res) => {
+router.post('/:bugId', authMiddleware, upload.single('file'), enforceAttachmentSize, async (req, res) => {
   try {
     const storageInstance = initStorage();
     if (!storageInstance) {

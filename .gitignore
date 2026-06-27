@@ -1,8 +1,15 @@
-# Dependencies
+# =============================================================================
+# Mantis — root .gitignore
+# Covers: Express server, React client, portal, hybrid-storage
+# =============================================================================
+
+# --- Dependencies ---
 node_modules/
 **/node_modules/
+.pnp
+.pnp.js
 
-# Build outputs
+# --- Build & bundler output ---
 client/build/
 build/
 dist/
@@ -10,82 +17,106 @@ out/
 .next/
 .turbo/
 .parcel-cache/
-
-# CRA / webpack cache
-.cache/
 **/.cache/
 .eslintcache
 
-# Environment & secrets (keep .env.example tracked)
+# --- Environment & secrets (keep *.env.example tracked) ---
 .env
 .env.*
 !.env.example
+!**/.env.example
 *.pem
 *.key
+*.p12
+*.pfx
 license.key
+**/license-keys.json
+**/mantis-env-snippet.txt
 
-# IDE & editors
-.idea/
-.vscode/
-*.swp
-*.swo
-*.code-workspace
-.cursor/
+# --- Portal (license API) — runtime / generated ---
+portal/data/
+portal/.env
 
-# Local AI / tooling
-.claude/
+# --- Mantis server — runtime / local data ---
+uploads/
+server/data/deployment.local.json
+server/data/*.csv
+server/data/bugs_*.csv
+server/data/*.local.json
 
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
-ehthumbs.db
+# --- Generated minified bundles (edit non-minified sources only) ---
+*.min.js
+*.min.css
+*.min.map
 
-# Logs
+# --- Logs & diagnostics ---
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# Runtime data
+# --- Test & coverage ---
+coverage/
+.nyc_output/
+.coverage/
+*.lcov
+
+# --- IDE & editors ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+*.code-workspace
+
+# --- Cursor / local AI tooling (not project rules) ---
+.cursor/
+.claude/
+.agent-tools/
+
+# --- OS junk ---
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# --- Process managers (local overrides only; commit example configs) ---
+ecosystem.config.local.js
+pm2.local.json
+
+# --- Runtime pid files ---
 pids/
 *.pid
 *.seed
 
-# Generated / minified bundles (source lives in non-minified files)
-*.min.js
-*.min.css
-
-# Test coverage
-coverage/
-.nyc_output/
-.coverage/
-
-# Uploads (local attachment storage)
-uploads/
-
-# Runtime deployment & CSV data (created on first run)
-server/data/deployment.local.json
-server/data/*.csv
-server/data/bugs_*.csv
-
-# Duplicate / legacy static paths (use imgs/ or client/src/assets/)
+# --- Legacy / duplicate static paths ---
 client/public/mantis/
 
-# Archived brand assets
+# --- Archived assets ---
 imgs/old/
 
-# Ad-hoc project dumps
+# --- Ad-hoc dumps & scratch ---
 structure.txt
-
-# Temporary files
-tmp/
-temp/
 *.tmp
 *.bak
 *~
+tmp/
+temp/
 
-# PM2 local config (may contain secrets)
-ecosystem.config.js
+# --- Optional cloud / deploy CLI ---
+.vercel/
+.netlify/
+.serverless/
+
+# --- Database dumps (keep schema SQL in server/database/ and portal/database/) ---
+*.sql.gz
+*.dump
+backup/

@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mantis — Self-Hosted Bug Tracking | TurnerTech</title>
+  <meta name="description" content="Ship great software with AI-powered, self-hosted bug tracking. No per-seat pricing. Your data stays on your servers." />
+  <link rel="stylesheet" href="/portal.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="/" class="logo">Mantis<span class="logo-dot">.</span></a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a href="#install">Install</a>
+        <button type="button" class="btn btn-ghost" id="btn-login">Sign in</button>
+        <button type="button" class="btn btn-primary" id="btn-register-header">Get Started</button>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">✨ 100% Self-Hosted · AI-Powered · No Per-Seat Fees</p>
+        <h1>Ship great software with <span class="gradient-text">Mantis</span></h1>
+        <p class="lead">
+          A simple, powerful self-hosted bug tracker with AI insights, GitHub integration,
+          and flexible deployment. Manage bugs on your infrastructure — without vendor lock-in.
+        </p>
+        <div class="hero-actions">
+          <button type="button" class="btn btn-primary btn-lg" id="btn-hero-start">Get Started Free</button>
+          <a class="btn btn-secondary btn-lg" href="#install">Install Guide</a>
+        </div>
+        <div class="hero-stats">
+          <div><strong>15+</strong><span>Years Experience</span></div>
+          <div><strong>100%</strong><span>Data Ownership</span></div>
+          <div><strong>$0</strong><span>Per-Seat (Community)</span></div>
+        </div>
+      </div>
+      <div class="hero-preview">
+        <div class="preview-window">
+          <div class="preview-toolbar">
+            <span></span><span></span><span></span>
+            <span class="preview-title">Mantis Dashboard</span>
+          </div>
+          <div class="preview-body">
+            <div class="preview-metrics">
+              <div class="metric"><span class="metric-val">147</span><span class="metric-lbl">Total Bugs</span></div>
+              <div class="metric"><span class="metric-val ok">89%</span><span class="metric-lbl">Resolved</span></div>
+              <div class="metric"><span class="metric-val warn">24</span><span class="metric-lbl">Open</span></div>
+              <div class="metric"><span class="metric-val crit">3</span><span class="metric-lbl">Critical</span></div>
+            </div>
+            <div class="preview-ai">
+              <strong>🤖 AI Insights</strong>
+              <p>Strong week with 89% resolution. Auth module needs review.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="section">
+    <div class="container">
+      <h2 class="section-title">Everything you need to manage bugs effectively</h2>
+      <p class="section-sub">Complete bug tracking with features that help your team ship better software, faster.</p>
+      <div class="feature-grid">
+        <article class="feature-card"><span class="feature-icon">🤖</span><h3>AI-Powered Insights</h3><p>Intelligent analysis of bug patterns, team performance, and risk assessments.</p></article>
+        <article class="feature-card"><span class="feature-icon">🔗</span><h3>GitHub Integration</h3><p>Auto-link commits to bugs via webhooks with author attribution.</p></article>
+        <article class="feature-card"><span class="feature-icon">📊</span><h3>Executive Reports</h3><p>PDF reports with charts, metrics, and AI commentary for stakeholders.</p></article>
+        <article class="feature-card"><span class="feature-icon">🔐</span><h3>Role-Based Access</h3><p>User, admin, and godmode roles with granular permissions.</p></article>
+        <article class="feature-card"><span class="feature-icon">📁</span><h3>Multi-Project</h3><p>Manage multiple products from one dashboard with per-project keys.</p></article>
+        <article class="feature-card"><span class="feature-icon">🏠</span><h3>100% Self-Hosted</h3><p>MySQL, PostgreSQL, Supabase, or CSV. S3, Azure, or local attachments.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section id="pricing" class="section section-dark">
+    <div class="container">
+      <h2 class="section-title">Simple, transparent pricing</h2>
+      <p class="section-sub">No per-seat pricing for self-hosted tiers. Pay once, own forever.</p>
+      <div class="pricing-grid">
+        <article class="price-card">
+          <h3>Community</h3>
+          <p class="price">$0<span>/forever</span></p>
+          <ul>
+            <li>5 users · 3 projects</li>
+            <li>Core bug tracking</li>
+            <li>GitHub integration</li>
+            <li>Self-hosted CSV or DB</li>
+          </ul>
+          <button type="button" class="btn btn-secondary btn-block" data-tier="community">Get Started</button>
+        </article>
+        <article class="price-card featured">
+          <span class="badge">Most Popular</span>
+          <h3>Professional</h3>
+          <p class="price">$199<span>/one-time</span></p>
+          <ul>
+            <li>Unlimited users & projects</li>
+            <li>AI insights & reports</li>
+            <li>Email scheduled reports</li>
+            <li>Priority support</li>
+          </ul>
+          <button type="button" class="btn btn-primary btn-block" data-tier="professional">Buy Now</button>
+        </article>
+        <article class="price-card">
+          <h3>Enterprise</h3>
+          <p class="price">Custom</p>
+          <ul>
+            <li>SSO / SAML</li>
+            <li>Audit logs & webhooks</li>
+            <li>White-label options</li>
+            <li>Dedicated support & SLA</li>
+          </ul>
+          <a class="btn btn-secondary btn-block" href="mailto:sales@turneratech.com">Contact Sales</a>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="install" class="section">
+    <div class="container">
+      <h2 class="section-title">Deploy in minutes</h2>
+      <p class="section-sub">Install on your server, then complete first-run setup at <code>/mantis/setup</code>.</p>
+      <div class="install-grid">
+        <article class="install-card">
+          <h3>📦 Clone & run</h3>
+          <pre><code>git clone https://github.com/dev-gauravd/mantis.git
+cd mantis
+npm run install-all
+npm run dev</code></pre>
+        </article>
+        <article class="install-card">
+          <h3>🌐 First-run setup</h3>
+          <p>Open your instance and create your <strong>local admin</strong> (not this portal login):</p>
+          <pre><code id="setup-url-pre">http://localhost:3000/mantis/setup</code></pre>
+        </article>
+        <article class="install-card">
+          <h3>🔑 License key</h3>
+          <p>Register here, get your license key, paste it in the Mantis setup wizard — or fetch it online during setup.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section cta">
+    <div class="container cta-inner">
+      <h2>Ready to take control of your bug tracking?</h2>
+      <p>Join teams who've switched to self-hosted tracking with AI-powered insights.</p>
+      <button type="button" class="btn btn-primary btn-lg" id="btn-cta-start">Create Portal Account</button>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© TurnerTech · Local dev portal · Production: <a href="https://turneratech.com/bugtracker/" target="_blank" rel="noopener">turneratech.com</a></p>
+    </div>
+  </footer>
+
+  <!-- Auth modal -->
+  <div class="modal hidden" id="modal-auth" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel">
+      <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+      <div class="modal-tabs">
+        <button type="button" class="modal-tab active" data-tab="register">Register</button>
+        <button type="button" class="modal-tab" data-tab="login">Sign in</button>
+      </div>
+      <form id="form-register" class="modal-form">
+        <label>Name<input name="name" required placeholder="Your name" /></label>
+        <label>Company<input name="company" placeholder="Optional" /></label>
+        <label>Email<input name="email" type="email" required placeholder="you@company.com" /></label>
+        <label>Password<input name="password" type="password" required minlength="8" placeholder="Min 8 characters" /></label>
+        <p class="form-hint">Portal account is for licenses & downloads. Your Mantis admin is created on your server.</p>
+        <button type="submit" class="btn btn-primary btn-block">Create account</button>
+        <p class="form-error hidden" id="register-error"></p>
+      </form>
+      <form id="form-login" class="modal-form hidden">
+        <label>Email<input name="email" type="email" required /></label>
+        <label>Password<input name="password" type="password" required /></label>
+        <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+        <p class="form-error hidden" id="login-error"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Account / license modal -->
+  <div class="modal hidden" id="modal-account" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel modal-panel-wide">
+      <button type="button" class="modal-close" data-close aria-label="Close">×</button>
+      <h2>Your Mantis licenses</h2>
+      <p class="account-email" id="account-email"></p>
+      <div class="account-actions">
+        <button type="button" class="btn btn-secondary" data-issue="community">Issue Community key</button>
+        <button type="button" class="btn btn-primary" data-issue="professional">Issue Professional key</button>
+        <button type="button" class="btn btn-secondary" data-issue="trial">14-day Pro trial</button>
+      </div>
+      <div id="license-result" class="license-result hidden">
+        <p><strong>Tier:</strong> <span id="license-tier"></span></p>
+        <label>License key — paste in Mantis setup
+          <textarea id="license-key-out" rows="4" readonly></textarea>
+        </label>
+        <button type="button" class="btn btn-primary" id="btn-copy-key">Copy key</button>
+        <a class="btn btn-secondary" id="btn-go-setup" href="#">Open Mantis setup →</a>
+      </div>
+      <h3>Previous keys</h3>
+      <ul id="license-history" class="license-history"></ul>
+      <button type="button" class="btn btn-ghost" id="btn-logout">Sign out</button>
+    </div>
+  </div>
+
+  <script src="/portal.js"></script>
+</body>
+</html>

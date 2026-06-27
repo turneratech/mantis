@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import Login from './components/Login';
@@ -45,28 +45,48 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
 };
 
 function AppRoutes() {
-  const { user } = useAuth();
-  const [setup, setSetup] = useState({ loading: true, needsSetup: false });
+  const { user, setSession } = useAuth();
+  const [setup, setSetup] = useState({ loading: true, needsSetup: false, status: null });
+
+  const refreshSetupStatus = useCallback(() => {
+    return axios.get('/api/setup/status')
+      .then(res => setSetup({ loading: false, needsSetup: res.data.needsSetup === true, status: res.data }))
+      .catch(() => setSetup({ loading: false, needsSetup: false, status: null }));
+  }, []);
 
   useEffect(() => {
-    if (!user || !hasElevatedPrivileges(user)) {
-      setSetup({ loading: false, needsSetup: false });
-      return;
+    refreshSetupStatus();
+  }, [refreshSetupStatus]);
+
+  const handleSetupComplete = (authSession) => {
+    if (authSession?.token && authSession?.user) {
+      setSession(authSession.token, authSession.user);
     }
-    axios.get('/api/deployment/setup-status')
-      .then(res => setSetup({ loading: false, needsSetup: res.data.needsSetup === true }))
-      .catch(() => setSetup({ loading: false, needsSetup: false }));
-  }, [user]);
+    setSetup({ loading: false, needsSetup: false, status: null });
+  };
 
   if (setup.loading) return <div className="loading">Loading…</div>;
 
-  if (setup.needsSetup && hasElevatedPrivileges(user)) {
-    return <SetupWizard onComplete={() => setSetup({ loading: false, needsSetup: false })} />;
+  if (setup.needsSetup) {
+    return (
+      <Routes>
+        <Route
+          path="*"
+          element={
+            <SetupWizard
+              initialStatus={setup.status}
+              onComplete={handleSetupComplete}
+            />
+          }
+        />
+      </Routes>
+    );
   }
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginRoute />} />
+      <Route path="/login" element={<LoginRoute needsSetup={setup.needsSetup} />} />
+      <Route path="/setup" element={<Navigate to="/" replace />} />
 
       <Route path="/" element={
         <ProtectedRoute>
@@ -94,8 +114,9 @@ function AppRoutes() {
   );
 }
 
-function LoginRoute() {
+function LoginRoute({ needsSetup }) {
   const { user } = useAuth();
+  if (needsSetup) return <Navigate to="/setup" replace />;
   return user ? <Navigate to="/" /> : <Login />;
 }
 
@@ -121,13 +142,18 @@ function App() {
     return res.data;
   };
 
+  const setSession = (token, userData) => {
+    localStorage.setItem('token', token);
+    setUser(userData);
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, logout, loading, setSession }}>
       <LicenseProvider>
         <BrowserRouter basename="/mantis">
           <div className="app">

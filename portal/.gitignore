@@ -1,0 +1,6 @@
+# Portal-specific ignores are in the repo root .gitignore (portal/data/, portal/.env).
+# This file remains for tools that only read directory-local rules.
+
+node_modules/
+data/
+.env

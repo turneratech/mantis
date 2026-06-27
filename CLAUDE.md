@@ -93,6 +93,10 @@ OPENAI_API_KEY=...
 
 ### Notes
 
-- Default dev credentials: `admin` / `admin123`
+- Default dev credentials: `admin` / `admin123` (when `MANTIS_DEV_DEFAULTS=true` or dev CSV defaults)
 - `featureService.min.js` and `licenseService.min.js` in `server/services/` are minified; do not modify them
 - The client `homepage` is set to `/mantis` in `client/package.json` for subdirectory deployment
+
+### Agent cache (read first)
+
+Before broad repo exploration, read **`docs/PROJECT_CACHE.md`** and **`docs/SITE_MAP.md`** for architecture, TurnerTech production state, portal EC2 deployment, and API maps.
